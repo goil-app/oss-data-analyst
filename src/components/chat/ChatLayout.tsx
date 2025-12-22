@@ -207,7 +207,7 @@ const ChatBotDemo = () => {
                         typeof part.output === "object" &&
                         "narrative" in part.output &&
                         "sql" in part.output &&
-                        "confidence" in part.output
+                        "csvResults" in part.output
                     );
 
                     if (finalizeReportPart && "output" in finalizeReportPart) {
