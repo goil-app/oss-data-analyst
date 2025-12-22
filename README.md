@@ -1,160 +1,142 @@
-# oss-data-analyst - Open Source AI Data Science Agent [Reference Architecture]
+# OSS Data Analyst
 
-oss-data-analyst is an intelligent AI agent that converts natural language questions into SQL queries and provides data analysis. Built with the Vercel AI SDK, it features multi-phase reasoning (planning, building, execution, reporting) and streams results in real-time.
+An AI data analyst agent that explores a semantic layer in a sandbox environment to answer natural language questions with SQL.
 
-> **Note**: This is a reference architecture. The semantic catalog and schemas included are simplified examples for demonstration purposes. Production implementations should use your own data models and schemas.
+## Overview
 
-## Features
+OSS Data Analyst uses a sandboxed exploration approach: instead of hardcoding schema knowledge into prompts, the agent is given shell access to a sandbox containing your semantic layer files. It discovers the schema dynamically using `cat`, `grep`, and `ls` commands, then builds and executes SQL queries based on what it finds.
 
-- **Multi-Phase AI Agent**: Planning → Building → Execution → Reporting workflow
-- **Real-time Streaming**: Live updates during query processing
-- **Smart Data Analysis**: Automated insights and visualizations
-- **SQL Validation**: Syntax checking and security policy enforcement
-- **Natural Language**: Ask questions in plain English
-- **Modern UI**: Built with Next.js, React, and TailwindCSS
-- **Extensible Tools**: Easy to add custom tools and capabilitiets
+This architecture means the agent can:
+- Adapt to any schema without prompt changes
+- Explore relationships between entities naturally
+- Handle schema updates without redeployment
+- Reason about data the same way a human analyst would
+
+## How It Works
+
+1. **Sandbox Creation** - A Vercel Sandbox is spun up and populated with your semantic layer YAML files
+2. **Schema Exploration** - The agent uses shell commands to browse the catalog and entity definitions
+3. **Query Building** - Based on discovered schema, the agent constructs SQL queries
+4. **Execution** - Queries run against your SQLite database
+5. **Reporting** - Results are formatted with a narrative explanation
+
+```
+User Question
+     ↓
+┌─────────────────────────────────────┐
+│           Vercel Sandbox            │
+│  ┌─────────────────────────────┐   │
+│  │  semantic/                   │   │
+│  │  ├── catalog.yml            │   │
+│  │  └── entities/              │   │
+│  │      ├── companies.yml      │   │
+│  │      ├── people.yml         │   │
+│  │      └── accounts.yml       │   │
+│  └─────────────────────────────┘   │
+│                                     │
+│  Agent explores with:               │
+│  • cat semantic/catalog.yml         │
+│  • grep -r "keyword" semantic/      │
+│  • cat semantic/entities/*.yml      │
+└─────────────────────────────────────┘
+     ↓
+SQL Query → Database → Results → Narrative
+```
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20.19.3+
-- pnpm 8.15.0+
-- AI Gateway API key
+- Node.js 20+
+- pnpm
+- Vercel AI Gateway API key
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/vercel/oss-data-analyst.git
-   cd oss-data-analyst
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   cp env.local.example .env.local
-   ```
-   Edit `.env.local` and add your Vercel AI Gateway key
-
-4. **Initialize the database**
-   ```bash
-   pnpm initDatabase
-   ```
-   This creates a SQLite database with sample data (Companies, People, Accounts)
-
-5. **Run the development server**
-   ```bash
-   pnpm dev
-   ```
-
-6. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-### Build for Production
-
 ```bash
-pnpm build
-pnpm start
+git clone https://github.com/vercel-labs/oss-data-analyst.git
+cd oss-data-analyst
+pnpm install
 ```
 
-## Sample Schema
+### Configuration
 
-This repository includes a sample database schema with three main entities to demonstrate oss-data-analyst's capabilities:
+```bash
+cp env.local.example .env.local
+```
 
-### **Companies**
-Represents organizations in your database. Each company has:
-- Basic information (name, industry, employee count)
-- Business metrics (founded date, status)
-- Example: Technology companies, Healthcare organizations, etc.
+Add your Vercel AI Gateway key to `.env.local`.
 
-### **Accounts**
-Represents customer accounts or subscriptions tied to companies. Each account includes:
-- Account identification (account number, status)
-- Financial metrics (monthly recurring value, contract details)
-- Relationship to parent company
-- Example: Active subscriptions with monthly values ranging from $10k-$50k
+### Initialize Database
 
-### **People**
-Represents individual employees or contacts within companies. Each person has:
-- Personal information (name, email)
-- Employment details (department, title, salary)
-- Relationship to their company
-- Example: Engineers, Sales representatives, Managers across different departments
+```bash
+pnpm initDatabase
+```
 
+Creates a SQLite database with sample data (Companies, People, Accounts).
 
-## How It Works
+### Run
 
-oss-data-analyst uses a multi-phase agentic workflow:
+```bash
+pnpm dev
+```
 
-1. **Planning Phase**
-   - Analyzes natural language query
-   - Searches semantic catalog for relevant entities
-   - Identifies required data and relationships
-   - Generates execution plan
+Open http://localhost:3000
 
-2. **Building Phase**
-   - Constructs SQL query from plan
-   - Validates syntax and security policies
-   - Optimizes query structure
-   - Finds join paths between tables
+## Semantic Layer
 
-3. **Execution Phase**
-   - Estimates query cost
-   - Executes SQL against database
-   - Handles errors with automatic repair
-   - Streams results
+The semantic layer lives in `src/semantic/` and defines your data model:
 
-4. **Reporting Phase**
-   - Formats query results
-   - Generates visualizations (charts, tables)
-   - Provides natural language explanations
-   - Performs sanity checks on data
+```
+src/semantic/
+├── catalog.yml           # Entity index with descriptions
+└── entities/
+    ├── companies.yml     # Company entity definition
+    ├── people.yml        # People entity definition
+    └── accounts.yml      # Accounts entity definition
+```
 
-## Extending oss-data-analyst
+Each entity YAML includes:
+- `sql_table_name` - The underlying table
+- `fields` - Available columns with SQL expressions
+- `joins` - Relationships to other entities
+- Example questions the entity can answer
 
-### Customizing Prompts
+The agent reads these files at runtime to understand your schema.
 
-Modify system prompts in `src/lib/prompts/`:
-- `planning.ts` - Planning phase behavior
-- `building.ts` - SQL generation logic
-- `execution.ts` - Query execution handling
-- `reporting.ts` - Results interpretation
-
-## Example Queries
-
-Try asking oss-data-analyst (using the sample database):
+## Example Questions
 
 - "How many companies are in the Technology industry?"
 - "What is the average salary by department?"
 - "Show me the top 5 accounts by monthly value"
 - "Which companies have the most employees?"
-- "What is the total revenue for Active accounts?"
-- "How many people work in Engineering?"
 
-## Using with Production Databases
+## Architecture
 
-The default setup uses SQLite for demonstration. To use with Snowflake or other databases:
+**Stack**: Next.js, Vercel AI SDK, Vercel Sandbox, SQLite
 
-1. Update `src/lib/oss-data-analyst-agent-advanced.ts` to import from `./tools/execute` instead of `./tools/execute-sqlite`
-2. Configure your database credentials in `.env.local`
-3. Update the semantic catalog in `src/lib/semantic/` with your schema definitions
+**Key Files**:
+- `src/lib/agent.ts` - Agent definition and system prompt
+- `src/lib/tools/sandbox.ts` - Sandbox creation with semantic files
+- `src/lib/tools/shell.ts` - Shell command tool for exploration
+- `src/lib/tools/execute-sqlite.ts` - SQL execution tool
+
+## Adding Your Own Schema
+
+1. Add entity YAML files to `src/semantic/entities/`
+2. Update `src/semantic/catalog.yml` with the new entity
+3. The agent will automatically discover and use the new schema
+
+No code changes required—the sandbox approach means schema changes are picked up at runtime.
 
 ## Troubleshooting
 
 **Database Not Found**
-- Run `pnpm initDatabase` to create and seed the database
-- Check that `data/oss-data-analyst.db` exists
-
-**AI Gateway API Errors**
-- Verify your API key is valid in `.env.local`
-- Check API rate limits and credits
+```bash
+pnpm initDatabase
+```
 
 **Build Errors**
-- Run `pnpm install` to update dependencies
-- Check TypeScript errors with `pnpm run type-check`
-- Clear `.next` folder and rebuild
+```bash
+pnpm type-check
+```

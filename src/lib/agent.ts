@@ -1,205 +1,155 @@
-import type { LanguageModel, UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import {
   stepCountIs,
-  Experimental_Agent as _,
-  generateText,
+  Experimental_Agent as Agent,
   convertToModelMessages,
   streamText,
+  tool,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
-import {
-  AssessEntityCoverage,
-  ClarifyIntent,
-  FinalizePlan,
-  FinalizeNoData,
-  LoadEntitiesBulk,
-  ReadEntityYamlRaw,
-  ScanEntityProperties,
-  SearchCatalog,
-  SearchSchema,
-} from "./tools/planning";
-// Use SQLite building tools for demo/development
-import { BuildSQL, FinalizeBuild, ValidateSQL } from "./tools/building-sqlite";
+import z from "zod";
+import { ExecuteSQL } from "./tools/execute-sqlite";
+import { createSemanticSandbox } from "./tools/sandbox";
+import { createExecuteCommandTool } from "./tools/shell";
 
-// For production Snowflake usage, use:
-// import {
-//   BuildSQL,
-//   FinalizeBuild,
-//   JoinPathFinder,
-//   ValidateSQL,
-// } from "./tools/building";
+const FinalizeReportSchema = z.object({
+  sql: z.string(),
+  csvResults: z.string(),
+  narrative: z.string().min(1),
+});
 
-// Use SQLite execution tools for demo/development
-import {
-  EstimateCost,
-  ExecuteSQL,
-  ExecuteSQLWithRepair,
-} from "./tools/execute-sqlite";
+const FinalizeReport = tool({
+  description: "Finalize the report with SQL, CSV results, and narrative.",
+  inputSchema: FinalizeReportSchema,
+  outputSchema: FinalizeReportSchema,
+  execute: async (input) => input,
+});
 
-// For production Snowflake usage, use:
-// import {
-//   EstimateCost,
-//   ExecuteSQL,
-//   ExecuteSQLWithRepair,
-//   ExplainSnowflake,
-// } from "./tools/execute";
-import {
-  ExplainResults,
-  FinalizeReport,
-  FormatResults,
-  SanityCheck,
-  VisualizeData,
-} from "./tools/reporting";
-import { PLANNING_SPECIALIST_SYSTEM_PROMPT } from "./prompts/planning";
-import { BUILDING_SPECIALIST_SYSTEM_PROMPT } from "./prompts/building";
-import { EXECUTION_MANAGER_SYSTEM_PROMPT } from "./prompts/execution";
-import { REPORTING_SPECIALIST_SYSTEM_PROMPT } from "./prompts/reporting";
-import { ListEntities } from "./semantic/io";
-import { sqlEvalSet } from "./sample-queries";
-interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
+const SYSTEM_PROMPT = `You are an expert data analyst AI. You answer questions by exploring a semantic layer (YAML schema files), building SQL queries for SQLite, executing them, and presenting results.
+
+## Filesystem Structure
+- semantic/catalog.yml - Entity catalog with descriptions, example questions, and field lists
+- semantic/entities/*.yml - Detailed entity definitions with SQL expressions, joins, and field metadata
+
+## Workflow
+
+### 1. Schema Exploration
+Use shell commands to find relevant entities and fields:
+- \`cat semantic/catalog.yml\` - Browse all entities
+- \`grep -r "keyword" semantic/\` - Search for terms
+- \`cat semantic/entities/<name>.yml\` - Get entity details (SQL expressions, joins)
+
+### 2. SQL Building
+Construct a SQLite SELECT query using sql_table_name from entity definitions. Use table aliases (t0, t1), apply filters, GROUP BY for aggregations, ORDER BY, and LIMIT 1001.
+
+### 3. Execution
+Call ExecuteSQL with your query. If error:
+- Analyze the error message carefully
+- Fix the SQL to address the specific issue (wrong column name, syntax error, etc.)
+- Try a DIFFERENT query - never retry the exact same SQL
+- If you see repeated failures, stop retrying and call FinalizeReport explaining the issue
+- Maximum 2 retry attempts, then report failure
+
+### 4. Reporting
+Call FinalizeReport with:
+- sql: the final SQL query that was executed (or attempted)
+- csvResults: the results as CSV text (header row + data rows), or empty string if no results
+- narrative: clear answer to the question with the data, assumptions, and caveats
+
+## Guidelines
+- Always explore schema before writing SQL - never guess field names
+- Use only fields from entity YAML files
+- Lead with the direct answer, then context
+- Keep narratives concise (3-6 sentences)
+- Never retry the same failing SQL - always modify it first
+- Format large numbers with underscores instead of commas (e.g., 1_234_567 not 1,234,567)
+
+- Today is ${new Date().toISOString().split("T")[0]}
+`;
+
 export type Phase = "planning" | "building" | "execution" | "reporting";
 
 export async function runAgent({
   messages,
-  prompt,
-  model = "openai/gpt-5",
+  model = "anthropic/claude-opus-4.5",
 }: {
   messages: UIMessage[];
-  prompt?: string;
   model?: string;
 }) {
-  let phase: Phase = "planning";
-  const possibleEntities = await ListEntities();
+  const { sandbox, stop } = await createSemanticSandbox();
 
   const result = streamText({
     model,
+    system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
-    providerOptions: {
-      openai: {
-        reasoningSummary: "detailed",
-        reasoningEffort: "medium",
-      },
-    },
-    tools: {
-      ReadEntityYamlRaw,
-      LoadEntitiesBulk,
-      ScanEntityProperties,
-      AssessEntityCoverage,
-      ClarifyIntent,
-      SearchCatalog,
-      SearchSchema,
-      FinalizePlan,
-      FinalizeNoData,
-      BuildSQL,
-      ValidateSQL,
-      FinalizeBuild,
-      EstimateCost,
-      ExecuteSQL,
-      ExecuteSQLWithRepair,
-      SanityCheck,
-      FormatResults,
-      ExplainResults,
-      FinalizeReport,
-    },
     stopWhen: [
       (ctx) =>
         ctx.steps.some((step) =>
-          step.toolResults?.some(
-            (t) =>
-              t.toolName === "FinalizeReport" ||
-              t.toolName === "FinalizeNoData" ||
-              t.toolName === "ClarifyIntent"
-          )
+          step.toolResults?.some((t) => t.toolName === "FinalizeReport")
         ),
       stepCountIs(100),
     ],
-    onStepFinish: ({ text, toolCalls }) => {
-      console.log(
-        `[Agent] Completed step ${text}: ${toolCalls
-          .map((t) => t.toolName)
-          .join(", ")}`
-      );
+    tools: {
+      executeCommand: createExecuteCommandTool(sandbox),
+      ExecuteSQL,
+      FinalizeReport,
     },
-    prepareStep: async ({ steps, stepNumber }) => {
-      console.log(
-        `[Agent] Preparing step ${stepNumber}, current phase: ${phase}`
-      );
-
-      if (
-        steps.some((step) =>
-          step.toolResults?.some((t) => t.toolName === "FinalizePlan")
-        )
-      ) {
-        phase = "building";
-      }
-      if (
-        steps.some((step) =>
-          step.toolResults?.some((t) => t.toolName === "FinalizeBuild")
-        )
-      ) {
-        phase = "execution";
-      }
-      if (
-        steps.some((step) =>
-          step.toolResults?.some((t) => t.toolName === "ExecuteSQLWithRepair")
-        )
-      ) {
-        phase = "reporting";
-      }
-
-      if (phase === "planning") {
-        return {
-          system: [
-            PLANNING_SPECIALIST_SYSTEM_PROMPT,
-            `<PossibleEntities>${JSON.stringify(
-              possibleEntities
-            )}</PossibleEntities>`,
-            `<VerifiedQueries>${JSON.stringify(sqlEvalSet)}</VerifiedQueries>`,
-          ].join("\n"),
-          activeTools: [
-            "ReadEntityYamlRaw",
-            "LoadEntitiesBulk",
-            "ScanEntityProperties",
-            "AssessEntityCoverage",
-            "ClarifyIntent",
-            "SearchCatalog",
-            "SearchSchema",
-            "FinalizePlan",
-            "FinalizeBuild",
-            "FinalizeNoData",
-          ],
-        };
-      }
-
-      if (phase === "building") {
-        return {
-          system: `${BUILDING_SPECIALIST_SYSTEM_PROMPT}\n\nYou are generating SQL for a SQLite database. Use standard SQL syntax compatible with SQLite. The schema uses simple table names: companies, people, accounts.`,
-          activeTools: ["BuildSQL", "ValidateSQL", "FinalizeBuild"],
-        };
-      }
-
-      if (phase === "execution") {
-        return {
-          system: `${EXECUTION_MANAGER_SYSTEM_PROMPT}\n\nYou are working with a SQLite database. Use ExecuteSQLWithRepair to run the final query. EstimateCost is available but returns simplified estimates for SQLite.`,
-          activeTools: ["EstimateCost", "ExecuteSQLWithRepair"],
-        };
-      }
-
-      return {
-        system: REPORTING_SPECIALIST_SYSTEM_PROMPT,
-        activeTools: [
-          "SanityCheck",
-          "FormatResults",
-          // "VisualizeData",
-          "ExplainResults",
-          "FinalizeReport",
-        ],
-      };
+    onFinish: async () => {
+      await stop();
     },
   });
 
   return result;
 }
+
+/**
+ * Runs the agent and returns both the result and the sandbox for further use.
+ * Caller is responsible for stopping the sandbox when done.
+ */
+export async function runAgentWithSandbox({
+  messages,
+  model = "anthropic/claude-opus-4.5",
+}: {
+  messages: UIMessage[];
+  model?: string;
+}) {
+  const { sandbox, stop } = await createSemanticSandbox();
+
+  const result = streamText({
+    model,
+    system: SYSTEM_PROMPT,
+    messages: convertToModelMessages(messages),
+    stopWhen: [
+      (ctx) =>
+        ctx.steps.some((step) =>
+          step.toolResults?.some((t) => t.toolName === "FinalizeReport")
+        ),
+      stepCountIs(100),
+    ],
+    tools: {
+      executeCommand: createExecuteCommandTool(sandbox),
+      ExecuteSQL,
+      FinalizeReport,
+    },
+  });
+
+  return { result, sandbox, stop };
+}
+
+type FinalizeReportOutput = z.infer<typeof FinalizeReportSchema>;
+
+export const extractFinalizeReport = (result: {
+  toolResults: Array<{ toolName: string; output?: unknown }>;
+}) => {
+  const finalResult = result.toolResults.find(
+    (t) => t.toolName === "FinalizeReport"
+  );
+
+  const output = (finalResult?.output || {}) as Partial<FinalizeReportOutput>;
+
+  return {
+    hasFinalResult: finalResult != null,
+    sql: output.sql,
+    csvResults: output.csvResults,
+    narrative: output.narrative,
+  };
+};

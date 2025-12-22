@@ -54,16 +54,8 @@ import { Loader } from "@/components/ai-elements/loader";
 
 const models = [
   {
-    name: "GPT-5",
-    value: "openai/gpt-5",
-  },
-  {
-    name: "Moonshot Kimi K2",
-    value: "moonshotai/kimi-k2-0905",
-  },
-  {
-    name: "GLM 4.6",
-    value: "zai/glm-4.6",
+    name: "Claude Opus 4.5",
+    value: "anthropic/claude-opus-4.5",
   },
 ];
 
@@ -72,7 +64,6 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<string>(models[0].value);
   const [webSearch, setWebSearch] = useState(false);
   const { messages, sendMessage, status, regenerate } = useChat();
-  console.log(messages);
 
   const handleSubmit = (message: PromptInputMessage) => {
     const hasText = Boolean(message.text);
