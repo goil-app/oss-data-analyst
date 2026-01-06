@@ -29,6 +29,7 @@ const nextConfig = {
       config.externals = config.externals || [];
       config.externals.push({
         "@resvg/resvg-js": "@resvg/resvg-js",
+        "better-sqlite3": "commonjs better-sqlite3",
       });
     }
     return config;
