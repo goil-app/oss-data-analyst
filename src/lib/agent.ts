@@ -1,15 +1,9 @@
 import type { UIMessage } from "ai";
-import {
-  stepCountIs,
-  Experimental_Agent as Agent,
-  convertToModelMessages,
-  streamText,
-  tool,
-} from "ai";
+import { stepCountIs, convertToModelMessages, streamText, tool } from "ai";
 import z from "zod";
 import { ExecuteSQL } from "./tools/execute-sqlite";
-import { createSemanticSandbox } from "./tools/sandbox";
-import { createExecuteCommandTool } from "./tools/shell";
+import { createSandbox } from "./tools/sandbox";
+import { createSemanticBashTools } from "./tools/shell";
 
 const FinalizeReportSchema = z.object({
   sql: z.string(),
@@ -33,7 +27,7 @@ const SYSTEM_PROMPT = `You are an expert data analyst AI. You answer questions b
 ## Workflow
 
 ### 1. Schema Exploration
-Use shell commands to find relevant entities and fields:
+Use the bash tool to find relevant entities and fields:
 - \`cat semantic/catalog.yml\` - Browse all entities
 - \`grep -r "keyword" semantic/\` - Search for terms
 - \`cat semantic/entities/<name>.yml\` - Get entity details (SQL expressions, joins)
@@ -75,12 +69,13 @@ export async function runAgent({
   messages: UIMessage[];
   model?: string;
 }) {
-  const { sandbox, stop } = await createSemanticSandbox();
+  const { sandbox, stop } = await createSandbox();
+  const { tools: bashTools } = await createSemanticBashTools(sandbox);
 
   const result = streamText({
     model,
     system: SYSTEM_PROMPT,
-    messages: convertToModelMessages(messages),
+    messages: await convertToModelMessages(messages),
     stopWhen: [
       (ctx) =>
         ctx.steps.some((step) =>
@@ -89,7 +84,7 @@ export async function runAgent({
       stepCountIs(100),
     ],
     tools: {
-      executeCommand: createExecuteCommandTool(sandbox),
+      bash: bashTools.bash,
       ExecuteSQL,
       FinalizeReport,
     },
@@ -112,12 +107,13 @@ export async function runAgentWithSandbox({
   messages: UIMessage[];
   model?: string;
 }) {
-  const { sandbox, stop } = await createSemanticSandbox();
+  const { sandbox, stop } = await createSandbox();
+  const { tools: bashTools } = await createSemanticBashTools(sandbox);
 
   const result = streamText({
     model,
     system: SYSTEM_PROMPT,
-    messages: convertToModelMessages(messages),
+    messages: await convertToModelMessages(messages),
     stopWhen: [
       (ctx) =>
         ctx.steps.some((step) =>
@@ -126,7 +122,7 @@ export async function runAgentWithSandbox({
       stepCountIs(100),
     ],
     tools: {
-      executeCommand: createExecuteCommandTool(sandbox),
+      bash: bashTools.bash,
       ExecuteSQL,
       FinalizeReport,
     },

@@ -1,8 +1,5 @@
 import { Sandbox } from "@vercel/sandbox";
 import ms from "ms";
-import * as fs from "fs/promises";
-import * as path from "path";
-import { glob } from "glob";
 
 export interface SandboxInstance {
   sandbox: Sandbox;
@@ -10,34 +7,26 @@ export interface SandboxInstance {
 }
 
 /**
- * Creates a sandbox initialized with semantic layer YAML files.
+ * Creates a sandbox for executing commands.
  * Returns the sandbox instance and a stop function for cleanup.
+ *
+ * Note: File uploads are handled by bash-tool's createBashTool function.
  *
  * Usage:
  * ```ts
- * const { sandbox, stop } = await createSemanticSandbox();
+ * const { sandbox, stop } = await createSandbox();
  * try {
- *   // use sandbox...
+ *   // use sandbox with createSemanticBashTools...
  * } finally {
  *   await stop();
  * }
  * ```
  */
-export async function createSemanticSandbox(): Promise<SandboxInstance> {
+export async function createSandbox(): Promise<SandboxInstance> {
   const sandbox = await Sandbox.create({
     resources: { vcpus: 4 },
-    timeout: ms("1h"),
+    timeout: ms("45m"), // Max allowed by Vercel Sandbox API is 2700000ms (45 minutes)
   });
-
-  const semanticDir = path.join(process.cwd(), "src/semantic");
-  const ymlFiles = await glob("**/*.yml", { cwd: semanticDir });
-  const files = await Promise.all(
-    ymlFiles.map(async (relativePath) => ({
-      path: `semantic/${relativePath}`,
-      content: await fs.readFile(path.join(semanticDir, relativePath)),
-    }))
-  );
-  await sandbox.writeFiles(files);
 
   return {
     sandbox,
