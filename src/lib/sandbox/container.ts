@@ -163,6 +163,12 @@ export async function execInContainer(
   });
 }
 
+function assertSafeFilePath(filePath: string): void {
+  if (!/^[a-zA-Z0-9/_.\-]+$/.test(filePath)) {
+    throw new Error(`Unsafe file path: ${filePath}`);
+  }
+}
+
 /**
  * Write a file into the container via exec + base64.
  */
@@ -171,6 +177,7 @@ export async function writeToContainer(
   filePath: string,
   content: Buffer,
 ): Promise<void> {
+  assertSafeFilePath(filePath);
   const b64 = content.toString("base64");
   await execInContainer(container, `echo '${b64}' | base64 -d > ${filePath}`);
 }

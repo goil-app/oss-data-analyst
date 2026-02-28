@@ -117,12 +117,10 @@ async function buildSystemPrompt(): Promise<string> {
 
 export type Phase = "planning" | "building" | "execution" | "reporting";
 
-export async function runAgent({
-  messages,
-  model = "claude-sonnet-4-6",
-}: {
+async function prepareAgentStream({ messages, model, onFinish }: {
   messages: UIMessage[];
-  model?: string;
+  model: string;
+  onFinish?: () => Promise<void>;
 }) {
   const manager = getSandboxManager();
   const [sandbox, systemPrompt] = await Promise.all([
@@ -165,6 +163,22 @@ export async function runAgent({
       ExecuteMongoDB: wrappedExecuteMongoDB,
       FinalizeReport,
     },
+    onFinish,
+  });
+
+  return { streamResult, sandbox };
+}
+
+export async function runAgent({
+  messages,
+  model = "claude-sonnet-4-6",
+}: {
+  messages: UIMessage[];
+  model?: string;
+}) {
+  const { streamResult, sandbox } = await prepareAgentStream({
+    messages,
+    model,
     onFinish: async () => {
       await sandbox.release();
     },
@@ -175,7 +189,8 @@ export async function runAgent({
 
 /**
  * Runs the agent and returns both the result and the container for further use.
- * Container is persistent - no cleanup needed.
+ * Caller owns the sandbox lifecycle — must call stop() when done.
+ * The SandboxManager's idle TTL (5 min) serves as a safety net for cleanup.
  */
 export async function runAgentWithSandbox({
   messages,
@@ -184,47 +199,9 @@ export async function runAgentWithSandbox({
   messages: UIMessage[];
   model?: string;
 }) {
-  const manager = getSandboxManager();
-  const [sandbox, systemPrompt] = await Promise.all([
-    manager.acquire(),
-    buildSystemPrompt(),
-  ]);
-  const sandboxInstance = { container: sandbox.container, stop: () => sandbox.release() };
-  const { tools: bashTools } = await createSemanticBashTools(sandboxInstance);
-  const { tools: mongoTools } = createMongoDBTools();
-
-  const originalExecute = mongoTools.ExecuteMongoDB.execute!;
-  const wrappedExecuteMongoDB = {
-    ...mongoTools.ExecuteMongoDB,
-    execute: async (input: Parameters<typeof originalExecute>[0], options: Parameters<typeof originalExecute>[1]) => {
-      const result = await originalExecute(input, options);
-      if ("rows" in result && result.rows.length > 0) {
-        try {
-          await writeResultToContainer(sandbox.container, result as any);
-        } catch (err) {
-          console.warn("[Agent] Failed to write results to container:", err);
-        }
-      }
-      return result;
-    },
-  };
-
-  const streamResult = streamText({
-    model: anthropic(model),
-    system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    stopWhen: [
-      (ctx) =>
-        ctx.steps.some((step) =>
-          step.toolResults?.some((t) => t.toolName === "FinalizeReport")
-        ),
-      stepCountIs(100),
-    ],
-    tools: {
-      bash: bashTools.bash,
-      ExecuteMongoDB: wrappedExecuteMongoDB,
-      FinalizeReport,
-    },
+  const { streamResult, sandbox } = await prepareAgentStream({
+    messages,
+    model,
   });
 
   return { result: streamResult, container: sandbox.container, stop: () => sandbox.release() };

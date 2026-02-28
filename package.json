@@ -4,7 +4,7 @@
   "private": false,
   "type": "module",
   "engines": {
-    "node": ">=20.0.0 <21.0.0"
+    "node": ">=20.0.0"
   },
   "description": "An open-source AI data analyst agent that converts natural language to MongoDB queries and provides intelligent data analysis",
   "keywords": [
@@ -78,7 +78,6 @@
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/postcss": "^4.1.15",
-    "@types/dockerode": "^4.0.1",
     "@types/pg": "^8.15.5",
     "@vercel/functions": "^3.1.0",
     "@xyflow/react": "^12.9.0",
@@ -129,6 +128,7 @@
   "packageManager": "pnpm@8.15.0",
   "devDependencies": {
     "@ngrok/ngrok": "^1.5.2",
+    "@types/dockerode": "^4.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.9.3",
     "@types/react": "^18.3.12",

@@ -16,13 +16,3 @@ export function validateGuildAccess(guildId: string | null): boolean {
 
   return allowedGuilds.includes(guildId);
 }
-
-/**
- * Extract guild_id from Discord interaction payload.
- * Returns null for DMs.
- */
-export function extractGuildId(payload: unknown): string | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const body = payload as Record<string, unknown>;
-  return typeof body.guild_id === 'string' ? body.guild_id : null;
-}

@@ -1,7 +1,34 @@
 import type { UIMessage } from "ai";
 import type { Message, TextBasedChannel } from "discord.js";
 import { estimateCost } from "tokenlens";
+import { client } from "./discord-client";
 import { runAgent, extractFinalizeReport } from "./agent";
+
+const MODEL = "claude-sonnet-4-6";
+const DISCORD_MAX = 2000;
+
+async function sendLongMessage(channel: TextBasedChannel, message: Message, text: string) {
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= DISCORD_MAX) {
+      chunks.push(remaining);
+      break;
+    }
+    let splitAt = remaining.lastIndexOf('\n', DISCORD_MAX);
+    if (splitAt <= 0) splitAt = DISCORD_MAX;
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      if (i === 0) await message.reply(chunks[i]);
+      else if ('send' in channel) await channel.send(chunks[i]);
+    } catch {
+      if ('send' in channel) await channel.send(chunks[i]);
+    }
+  }
+}
 
 export async function handleAgentMessage(message: Message) {
   // Show typing indicator while processing
@@ -23,7 +50,7 @@ export async function handleAgentMessage(message: Message) {
         .reverse()
         .map((m) => ({
           id: m.id,
-          role: m.author.bot ? "assistant" : "user",
+          role: m.author.id === client.user?.id ? "assistant" : "user",
           parts: [{ type: "text", text: m.content }],
         }));
     } catch {
@@ -40,7 +67,7 @@ export async function handleAgentMessage(message: Message) {
     }
 
     // Run agent
-    const result = await runAgent({ messages: uiMessages });
+    const result = await runAgent({ messages: uiMessages, model: MODEL });
 
     // Consume stream to completion
     for await (const _ of result.textStream) { /* drain */ }
@@ -58,7 +85,12 @@ export async function handleAgentMessage(message: Message) {
       },
       { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
     );
-    const cost = estimateCost({ modelId: "claude-sonnet-4-6", usage: { input: usage.inputTokens, output: usage.outputTokens, cacheReads: usage.cachedInputTokens } }).totalUSD;
+    let cost: number | null = null;
+    try {
+      cost = estimateCost({ modelId: MODEL, usage: { input: usage.inputTokens, output: usage.outputTokens, cacheReads: usage.cachedInputTokens } }).totalUSD ?? null;
+    } catch {
+      // estimateCost may not support the model
+    }
     console.log(`[Agent] Request completed — input: ${usage.inputTokens}, output: ${usage.outputTokens}, cached: ${usage.cachedInputTokens}, cost: $${(cost ?? 0).toFixed(4)}`);
 
     const allToolResults = steps.flatMap((s) => s.toolResults ?? []);
@@ -66,12 +98,7 @@ export async function handleAgentMessage(message: Message) {
 
     const text = narrative ?? "Sorry, I couldn't generate a response.";
 
-    // Reply if we can, otherwise send (requires Read Message History permission)
-    try {
-      await message.reply(text);
-    } catch {
-      if ('send' in channel) await channel.send(text);
-    }
+    await sendLongMessage(channel, message, text);
   } finally {
     clearInterval(typingInterval);
   }
