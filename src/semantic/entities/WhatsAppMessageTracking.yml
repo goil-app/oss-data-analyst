@@ -1,0 +1,63 @@
+name: WhatsAppMessageTracking
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.WhatsAppMessageTracking
+grain: one row per WhatsApp message tracking record
+description: WhatsApp message delivery tracking for monitoring message status and delivery
+common_questions:
+  - What is the WhatsApp message delivery success rate?
+  - How many messages per business?
+  - What are the current message statuses?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the tracking record
+
+  - name: notificationId
+    sql: notificationId
+    type: string
+    description: Associated notification identifier
+
+  - name: messageId
+    sql: messageId
+    type: string
+    description: WhatsApp message identifier
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account identifier
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+  - name: statusUpdates
+    sql: statusUpdates
+    type: array
+    description: Array of status update events
+
+time_dimensions:
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Message creation timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of tracked messages
+
+  - name: unique_messages
+    sql: messageId
+    type: count_distinct
+    description: Number of unique messages
+
+  - name: unique_businesses
+    sql: businessId
+    type: count_distinct
+    description: Number of businesses using WhatsApp

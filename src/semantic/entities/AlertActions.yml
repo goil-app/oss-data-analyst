@@ -1,0 +1,68 @@
+name: AlertActions
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.AlertActions
+grain: one row per alert interaction event
+description: Alert interaction events tracking how users respond to alerts
+common_questions:
+  - How many alert interactions per day?
+  - Which alerts are most interacted with?
+  - What devices are used for alert interactions?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the alert action
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account that performed the action
+
+  - name: alertId
+    sql: alertId
+    type: string
+    description: Alert identifier
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+  - name: deviceClientType
+    sql: deviceClientType
+    type: string
+    description: Type of client device
+
+  - name: deviceClientModel
+    sql: deviceClientModel
+    type: string
+    description: Model of client device
+
+  - name: deviceClientOS
+    sql: deviceClientOS
+    type: string
+    description: Operating system of client device
+
+time_dimensions:
+  - name: date
+    sql: date
+    type: time
+    description: Alert action timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of alert actions
+
+  - name: unique_accounts
+    sql: accountId
+    type: count_distinct
+    description: Number of unique accounts
+
+  - name: unique_alerts
+    sql: alertId
+    type: count_distinct
+    description: Number of unique alerts interacted with

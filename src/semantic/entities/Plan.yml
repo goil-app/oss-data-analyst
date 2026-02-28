@@ -1,0 +1,66 @@
+name: Plan
+type: dimension_table
+database: ClientDB
+table: ClientDB.Plan
+grain: one row per subscription plan
+description: Subscription plan definitions with pricing, tier level, free/paid status, and module entitlements
+common_questions:
+  - How many plans exist?
+  - Which plans are free?
+  - What modules does each plan include?
+  - What is the tier distribution of plans?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique plan identifier (ObjectId)
+
+  - name: code
+    sql: code
+    type: string
+    description: Machine-readable plan code (e.g. free_time_tracking, unrestricted)
+
+  - name: name
+    sql: name
+    type: string
+    description: Human-readable plan name
+
+  - name: price
+    sql: price
+    type: number
+    description: Plan price (0 for free plans)
+
+  - name: isFree
+    sql: isFree
+    type: boolean
+    description: Whether the plan is free
+
+  - name: tierLevel
+    sql: tierLevel
+    type: number
+    description: Numeric tier level (0 = lowest/free, 99 = unrestricted)
+
+time_dimensions:
+  - name: createdAt
+    sql: createdAt
+    type: time
+    description: Plan creation timestamp
+
+  - name: updatedAt
+    sql: updatedAt
+    type: time
+    description: Plan last update timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of plans
+
+  - name: free_plan_count
+    sql: _id
+    type: count_distinct
+    description: Number of free plans
+    filters:
+      - sql: "isFree = true"

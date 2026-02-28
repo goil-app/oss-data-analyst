@@ -1,0 +1,73 @@
+name: Branding
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.Branding
+grain: one row per branding interaction event
+description: Branding interaction events for tracking brand exposure and engagement
+common_questions:
+  - How many branding interactions per day/week?
+  - Which branding types are most viewed?
+  - What is the geographic/device distribution of branding views?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the branding event
+
+  - name: brandingId
+    sql: brandingId
+    type: string
+    description: Branding content identifier
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account that interacted with branding
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+  - name: type
+    sql: type
+    type: string
+    description: Type of branding interaction
+
+  - name: deviceClientType
+    sql: deviceClientType
+    type: string
+    description: Type of client device
+
+  - name: deviceClientModel
+    sql: deviceClientModel
+    type: string
+    description: Model of client device
+
+  - name: deviceClientOS
+    sql: deviceClientOS
+    type: string
+    description: Operating system of client device
+
+time_dimensions:
+  - name: date
+    sql: date
+    type: time
+    description: Branding interaction timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of branding interactions
+
+  - name: unique_brandings
+    sql: brandingId
+    type: count_distinct
+    description: Number of unique branding items
+
+  - name: unique_viewers
+    sql: accountId
+    type: count_distinct
+    description: Number of unique viewers

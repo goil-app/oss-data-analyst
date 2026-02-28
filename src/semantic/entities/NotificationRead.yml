@@ -1,0 +1,78 @@
+name: NotificationRead
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.NotificationRead
+grain: one row per notification read event
+description: Notification read events for tracking engagement with notifications
+common_questions:
+  - What is the notification read rate?
+  - Which devices have the highest read rates?
+  - What time of day are notifications most read?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the read event
+
+  - name: notificationId
+    sql: notificationId
+    type: string
+    description: Notification identifier
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account that read the notification
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+  - name: sessionId
+    sql: sessionId
+    type: string
+    description: Session identifier
+
+  - name: phone
+    sql: phone
+    type: string
+    description: Phone number (if applicable)
+
+  - name: deviceClientType
+    sql: deviceClientType
+    type: string
+    description: Type of client device
+
+  - name: deviceClientModel
+    sql: deviceClientModel
+    type: string
+    description: Model of client device
+
+  - name: deviceClientOS
+    sql: deviceClientOS
+    type: string
+    description: Operating system of client device
+
+time_dimensions:
+  - name: date
+    sql: date
+    type: time
+    description: When the notification was read
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of notification reads
+
+  - name: unique_notifications
+    sql: notificationId
+    type: count_distinct
+    description: Number of unique notifications read
+
+  - name: unique_readers
+    sql: accountId
+    type: count_distinct
+    description: Number of unique readers

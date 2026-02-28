@@ -1,48 +1,162 @@
 entities:
-  - name: Company
-    grain: one row per company record
+  - name: Business
+    grain: one row per business/tenant
     description: >-
-      Company information including industry classification, size metrics, and location data for analyzing business demographics and organizational characteristics.
-    fields: ['id', 'name', 'industry', 'employee_count', 'revenue', 'founded_year', 'country', 'city', 'created_at']
+      Business (tenant) configuration including name, subdomain, plan assignment, category, and soft-delete status. Each business references a Plan via planId.
+    fields: ['_id', 'name', 'subdomain', 'clientId', 'planId', 'category', 'uniqueAuthCode', 'isDeleted', 'version']
+    join_hint: "To join Business with Plan use $lookup: { from: 'Plan', localField: 'planId', foreignField: '_id', as: 'plan' }. Both planId and Plan._id are ObjectId — never compare them as strings."
     example_questions:
-      - How many companies are in each industry?
-      - What is the average revenue by industry?
-      - Which companies have the most employees?
-      - Show me companies founded after 2010
-      - What is the geographic distribution of companies?
+      - How many active businesses are there?
+      - Which businesses use each plan?
+      - How many businesses per category?
+      - List all deleted businesses
+      - Show businesses by plan tier
     use_cases: >-
-      Market segmentation and industry analysis
-      Company size and revenue distribution reporting
-      Geographic footprint visualization
+      Tenant management reporting
+      Plan adoption analysis
+      Business segmentation by category
 
-  - name: People
-    grain: one row per person record
+  - name: Plan
+    grain: one row per subscription plan
     description: >-
-      Employee records with demographic information, job details, and compensation data for workforce analysis and human capital reporting.
-    fields: ['id', 'first_name', 'last_name', 'email', 'company_id', 'job_title', 'department', 'salary', 'hire_date', 'birth_date', 'created_at']
+      Subscription plan definitions with pricing, tier level, and free/paid status. Referenced by Business.planId.
+    fields: ['_id', 'code', 'name', 'price', 'entitlements', 'createdAt', 'updatedAt', 'isFree', 'tierLevel']
     example_questions:
-      - What is the average salary by department?
-      - How many employees work in each company?
-      - Who are the highest paid employees?
-      - What is the average tenure of employees?
-      - Show me the distribution of employees by job title
+      - How many plans are free vs paid?
+      - What is the tier level of each plan?
+      - Which plan has the most businesses assigned?
+      - List all plans ordered by tier level
     use_cases: >-
-      Workforce composition and headcount analysis
-      Compensation benchmarking and equity reviews
-      Department staffing and organizational structure
+      Subscription plan catalog
+      Pricing and tier analysis
+      Entitlement management
 
-  - name: Accounts
-    grain: one row per customer account record
+  - name: UserActivity
+    grain: one row per user session/activity event
     description: >-
-      Customer account records with contract details, revenue metrics, and relationship information for analyzing customer health and commercial performance.
-    fields: ['id', 'account_number', 'company_id', 'account_manager_id', 'status', 'account_type', 'monthly_value', 'total_revenue', 'contract_start_date', 'contract_end_date', 'created_at']
+      User session and activity tracking data for analyzing user engagement patterns, device usage, and account activity.
+    fields: ['_id', 'date', 'accountId', 'accountTypeId', 'os', 'device', 'businessId']
     example_questions:
-      - What is the total monthly recurring revenue?
-      - How many accounts are Active vs Inactive?
-      - Which account managers manage the most accounts?
-      - Show me the top 10 accounts by total revenue
-      - What is the average contract length?
+      - How many active users per day?
+      - What devices are most used?
+      - Which account types have the most activity?
+      - Show activity by operating system
+      - What is the trend of user activity over time?
     use_cases: >-
-      Revenue reporting and forecasting
-      Account health monitoring and churn analysis
-      Account manager performance and territory planning
+      User engagement analysis
+      Device and platform analytics
+      Account type segmentation
+
+  - name: AlertActions
+    grain: one row per alert interaction event
+    description: >-
+      Alert interaction events tracking how users respond to alerts across different devices and platforms.
+    fields: ['_id', 'accountId', 'alertId', 'date', 'deviceClientType', 'deviceClientModel', 'deviceClientOS', 'businessId']
+    example_questions:
+      - How many alert interactions per day?
+      - Which alerts are most interacted with?
+      - What devices are used for alert interactions?
+      - Show alert engagement by operating system
+    use_cases: >-
+      Alert engagement monitoring
+      Device-specific alert optimization
+      User response tracking
+
+  - name: TrackNotifications
+    grain: one row per notification delivery tracking event
+    description: >-
+      Notification delivery tracking data for analyzing notification reach, delivery success, and session-based targeting.
+    fields: ['_id', 'date', 'notificationId', 'businessId', 'accountId', 'deviceClientType', 'deviceClientModel', 'deviceClientOS', 'sessionId']
+    example_questions:
+      - How many notifications were sent per day?
+      - What is the delivery distribution by device type?
+      - Which sessions receive the most notifications?
+      - Show notification volume by business
+    use_cases: >-
+      Notification delivery analytics
+      Device targeting optimization
+      Business notification reporting
+
+  - name: NotificationRead
+    grain: one row per notification read event
+    description: >-
+      Notification read events for tracking engagement and measuring notification effectiveness.
+    fields: ['_id', 'date', 'notificationId', 'accountId', 'deviceClientType', 'deviceClientModel', 'deviceClientOS', 'businessId', 'sessionId', 'phone']
+    example_questions:
+      - What is the notification read rate?
+      - Which devices have the highest read rates?
+      - What time of day are notifications most read?
+      - Compare read rates by operating system
+    use_cases: >-
+      Read rate optimization
+      Engagement analytics
+      Best timing analysis
+
+  - name: Branding
+    grain: one row per branding interaction event
+    description: >-
+      Branding interaction events for tracking brand exposure, engagement, and reach across devices.
+    fields: ['_id', 'date', 'brandingId', 'accountId', 'deviceClientType', 'deviceClientModel', 'deviceClientOS', 'type', 'businessId']
+    example_questions:
+      - How many branding interactions per day?
+      - Which branding types are most viewed?
+      - What is the device distribution of branding views?
+      - Show branding engagement by type
+    use_cases: >-
+      Brand exposure tracking
+      Marketing analytics
+      Device-specific engagement
+
+  - name: SmartNotificationFeedback
+    grain: one row per AI notification feedback
+    description: >-
+      Feedback on AI-generated notifications for measuring AI quality, model performance, and user satisfaction.
+    fields: ['_id', 'prompt', 'notification', 'feedback', 'modelUsed', 'iaUsed', 'businessId', 'date']
+    example_questions:
+      - What is the feedback distribution?
+      - Which AI models perform best?
+      - What types of prompts generate the best feedback?
+      - Compare feedback by AI system
+    use_cases: >-
+      AI model evaluation
+      Notification quality improvement
+      Prompt engineering insights
+
+  - name: WhatsAppMessageTracking
+    grain: one row per WhatsApp message tracking record
+    description: >-
+      WhatsApp message delivery tracking for monitoring message status and delivery success.
+    fields: ['_id', 'notificationId', 'messageId', 'accountId', 'businessId', 'creationDate', 'statusUpdates']
+    example_questions:
+      - What is the WhatsApp message delivery success rate?
+      - How many messages per business?
+      - Show message status distribution
+    use_cases: >-
+      WhatsApp delivery monitoring
+      Business messaging analytics
+      Status tracking
+
+  - name: Translation
+    grain: one row per translation entry
+    description: >-
+      i18n translations for multi-language support including Spanish and Catalan.
+    fields: ['_id', 'tag', 'default', 'es', 'ca']
+    example_questions:
+      - How many translations exist?
+      - Which tags have translations?
+      - What is the coverage of Spanish translations?
+    use_cases: >-
+      Localization management
+      Translation coverage reporting
+
+  - name: ChartType
+    grain: one row per chart type configuration
+    description: >-
+      Chart configuration metadata for analytics visualization options.
+    fields: ['_id', 'name', 'tag']
+    example_questions:
+      - What chart types are available?
+      - How many chart configurations exist?
+    use_cases: >-
+      Visualization configuration
+      Chart type management

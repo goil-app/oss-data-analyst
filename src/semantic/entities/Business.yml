@@ -1,0 +1,78 @@
+name: Business
+type: dimension_table
+database: ClientDB
+table: ClientDB.Business
+grain: one row per business/tenant
+description: Business (tenant) configuration including branding, plan assignment, category, and platform endpoints
+common_questions:
+  - How many businesses are active?
+  - Which plan does each business use?
+  - How many businesses per category?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique business identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Business display name
+
+  - name: subdomain
+    sql: subdomain
+    type: string
+    description: Business subdomain slug
+
+  - name: clientId
+    sql: clientId
+    type: string
+    description: Associated client identifier (ObjectId)
+
+  - name: planId
+    sql: planId
+    type: string
+    description: Assigned plan identifier. Stored as ObjectId — when joining with Plan collection use $lookup with localField "planId" and foreignField "_id". Both fields are ObjectId type.
+
+  - name: category
+    sql: category
+    type: string
+    description: Business category (e.g. legal)
+
+  - name: uniqueAuthCode
+    sql: uniqueAuthCode
+    type: string
+    description: Unique authentication code for the business
+
+  - name: isDeleted
+    sql: isDeleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: version
+    sql: version
+    type: number
+    description: Business configuration version number
+
+joins:
+  - name: Plan
+    database: ClientDB
+    collection: Plan
+    type: many_to_one
+    local_field: planId
+    foreign_field: _id
+    note: Both planId and Plan._id are ObjectId — do NOT convert to string for matching. Use $lookup in aggregation pipeline.
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of businesses
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted businesses
+    filters:
+      - sql: "isDeleted = false"

@@ -15,37 +15,37 @@ This architecture means the agent can:
 
 ## How It Works
 
-1. **Sandbox Creation** - A persistent Docker container is started and populated with your semantic layer YAML files and Python query scripts
+1. **Sandbox Creation** - A persistent Docker container is started with your semantic layer YAML files mounted read-only
 2. **Schema Exploration** - The agent uses shell commands to browse the catalog and entity definitions
 3. **Query Building** - Based on discovered schema, the agent constructs MongoDB queries (find or aggregation)
-4. **Execution** - Queries run inside the Docker container via Python/pymongo — fully isolated from the host process
+4. **Execution** - Queries run on the host via the Node.js MongoDB driver; results are auto-written to `/tmp/mongodb_result.{json,csv}` inside the container for Python analysis
 5. **Reporting** - Results are formatted with a plain-language narrative
 
 ```
 User Question
      ↓
-┌─────────────────────────────────────┐
-│         Docker Sandbox              │
-│  ┌─────────────────────────────┐   │
-│  │  semantic/                   │   │
-│  │  ├── databases.yml          │   │
-│  │  ├── catalog.yml            │   │
-│  │  └── entities/              │   │
-│  │      └── *.yml              │   │
-│  └─────────────────────────────┘   │
-│  ┌─────────────────────────────┐   │
-│  │  scripts/                   │   │
-│  │  └── execute_query.py       │   │
-│  └─────────────────────────────┘   │
-│                                     │
-│  Agent explores with:               │
-│  • cat semantic/catalog.yml         │
-│  • grep -r "keyword" semantic/      │
-│  • cat semantic/entities/*.yml      │
-│  • python3 for data analysis        │
-└─────────────────────────────────────┘
+┌──────────── Host (Node.js) ─────────────┐
+│  ExecuteMongoDB tool                     │
+│    → Node.js MongoDB driver             │
+│    → results auto-written to container  │
+└──────────────────────────────────────────┘
      ↓
-MongoDB Query (via pymongo) → Results → Narrative
+┌──────────── Docker Sandbox ─────────────┐
+│  semantic/                               │
+│  ├── databases.yml                      │
+│  ├── catalog.yml                        │
+│  └── entities/*.yml                     │
+│                                          │
+│  /tmp/mongodb_result.json  (auto)       │
+│  /tmp/mongodb_result.csv   (auto)       │
+│                                          │
+│  Agent explores with:                    │
+│  • cat semantic/catalog.yml             │
+│  • grep -r "keyword" semantic/          │
+│  • python3 + pandas on result files     │
+└──────────────────────────────────────────┘
+     ↓
+Results → Narrative
 ```
 
 ## Quick Start
@@ -109,23 +109,23 @@ On first run, the sandbox container (`data-analyst-sandbox`) is created and Pyth
 
 ## Docker Sandbox
 
-All shell exploration and query execution happen inside a persistent `ubuntu:22.04` Docker container named `data-analyst-sandbox`.
+Shell exploration and Python analysis happen inside a persistent `ubuntu:22.04` Docker container named `data-analyst-sandbox`. MongoDB queries run on the host via the Node.js driver (no database credentials enter the container).
 
 **Volume mounts (read-only):**
 - `src/semantic/` → `/app/semantic` — schema YAML files
-- `src/lib/tools/scripts/` → `/app/scripts` — Python query runner
 
-**Environment variables injected into the container:**
-- `MONGODB_URI_DOCKER` — same as `MONGODB_URI` but with `localhost`/`127.0.0.1` replaced by `host.docker.internal` for Mac compatibility. Atlas and remote URIs are passed through unchanged.
-- `MONGODB_DATABASES` — comma-separated list of configured database names
+**Pre-installed Python packages:** `pandas`, `numpy`, `scipy`
 
-**Pre-installed Python packages:** `pymongo`, `pandas`, `numpy`, `scipy`
+**Auto-written result files:** After each `ExecuteMongoDB` query, results are piped into the container via base64:
+- `/tmp/mongodb_result.json` — full JSON array of rows
+- `/tmp/mongodb_result.csv` — CSV with headers, ready for `pd.read_csv()`
 
 Query execution flow:
 ```
-ExecuteMongoDB tool → serialize params as JSON → base64 encode
-  → execInContainer("echo ... | base64 -d | python3 /app/scripts/execute_query.py")
-  → parse stdout JSON → return rows/columns/rowCount/executionTime
+ExecuteMongoDB tool → Node.js MongoDB driver (host)
+  → rows/columns returned to model
+  → results base64-piped into container as /tmp/mongodb_result.{json,csv}
+  → agent can run: python3 -c "import pandas as pd; df = pd.read_csv('/tmp/mongodb_result.csv')"
 ```
 
 ## Discord Integration
@@ -179,9 +179,8 @@ The agent reads these files at runtime to understand your schema.
 - `src/lib/agent.ts` — Agent definition and system prompt
 - `src/lib/tools/sandbox.ts` — Docker container creation, Python setup, exec helper
 - `src/lib/tools/shell.ts` — Bash tool for schema exploration
-- `src/lib/tools/execute-mongodb.ts` — MongoDB tool (routes through Python sandbox)
-- `src/lib/tools/scripts/execute_query.py` — Python query runner (find + aggregation)
-- `src/lib/mongodb.ts` — MongoDB client (used for schema introspection by agent.ts)
+- `src/lib/tools/execute-mongodb.ts` — MongoDB tool (executes on host via Node.js driver)
+- `src/lib/mongodb.ts` — MongoDB client and query execution (find + aggregation)
 - `src/lib/database-registry.ts` — Multi-database configuration from env vars
 
 ## Adding Your Own Schema
@@ -201,7 +200,7 @@ pnpm testMongo
 ```
 
 **Python not found on first query**
-The sandbox installs Python on container creation. If you hit this on a pre-existing container, restart the bot — it will detect missing Python and reinstall automatically.
+The sandbox installs Python on container creation. If you hit this on a pre-existing container, restart — it will detect missing Python and reinstall automatically.
 
 **Build Errors**
 ```bash

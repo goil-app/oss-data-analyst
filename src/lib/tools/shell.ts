@@ -17,7 +17,12 @@ Use this to explore YAML schema files:
 - \`grep -r "keyword" semantic/\` - Search for terms
 - \`cat semantic/entities/<name>.yml\` - Get entity details
 
-Python 3 is available with pandas, numpy, pymongo, scipy for data analysis.`,
+Python 3 is available with pandas, numpy, scipy for data analysis.
+
+After each ExecuteMongoDB query, results are automatically written to:
+- /tmp/mongodb_result.json — full JSON array of rows
+- /tmp/mongodb_result.csv — CSV with headers, ready for pandas
+Example: python3 -c "import pandas as pd; df = pd.read_csv('/tmp/mongodb_result.csv'); print(df.describe())"`,
     inputSchema: z.object({
       command: z.string().describe("The bash command to execute"),
     }),

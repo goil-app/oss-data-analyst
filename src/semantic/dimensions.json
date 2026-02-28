@@ -1,1 +1,78 @@
-{}
+{
+  "common_dimensions": {
+    "accountId": {
+      "description": "User account identifier",
+      "type": "string",
+      "used_in": ["UserActivity", "AlertActions", "TrackNotifications", "NotificationRead", "Branding", "WhatsAppMessageTracking"]
+    },
+    "businessId": {
+      "description": "Business/organization identifier",
+      "type": "string",
+      "used_in": ["UserActivity", "AlertActions", "TrackNotifications", "NotificationRead", "Branding", "SmartNotificationFeedback", "WhatsAppMessageTracking"]
+    },
+    "sessionId": {
+      "description": "User session identifier",
+      "type": "string",
+      "used_in": ["TrackNotifications", "NotificationRead"]
+    },
+    "deviceClientType": {
+      "description": "Type of client device (mobile, desktop, tablet, etc.)",
+      "type": "string",
+      "used_in": ["AlertActions", "TrackNotifications", "NotificationRead", "Branding"]
+    },
+    "deviceClientModel": {
+      "description": "Model of client device",
+      "type": "string",
+      "used_in": ["AlertActions", "TrackNotifications", "NotificationRead", "Branding"]
+    },
+    "deviceClientOS": {
+      "description": "Operating system of client device",
+      "type": "string",
+      "used_in": ["AlertActions", "TrackNotifications", "NotificationRead", "Branding"]
+    },
+    "os": {
+      "description": "Operating system",
+      "type": "string",
+      "used_in": ["UserActivity"]
+    },
+    "device": {
+      "description": "Device type",
+      "type": "string",
+      "used_in": ["UserActivity"]
+    }
+  },
+  "time_dimensions": {
+    "date": {
+      "description": "Event timestamp",
+      "type": "time",
+      "used_in": ["UserActivity", "AlertActions", "TrackNotifications", "NotificationRead", "Branding", "SmartNotificationFeedback"]
+    },
+    "creationDate": {
+      "description": "Creation timestamp",
+      "type": "time",
+      "used_in": ["WhatsAppMessageTracking", "WhatsAppMessageLog"]
+    }
+  },
+  "id_dimensions": {
+    "notificationId": {
+      "description": "Notification identifier",
+      "type": "string",
+      "used_in": ["TrackNotifications", "NotificationRead", "WhatsAppMessageTracking"]
+    },
+    "alertId": {
+      "description": "Alert identifier",
+      "type": "string",
+      "used_in": ["AlertActions"]
+    },
+    "brandingId": {
+      "description": "Branding content identifier",
+      "type": "string",
+      "used_in": ["Branding"]
+    },
+    "messageId": {
+      "description": "WhatsApp message identifier",
+      "type": "string",
+      "used_in": ["WhatsAppMessageTracking"]
+    }
+  }
+}

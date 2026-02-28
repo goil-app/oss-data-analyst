@@ -1,0 +1,31 @@
+name: ChartType
+type: dimension_table
+database: AnalyticsDB
+table: AnalyticsDB.ChartType
+grain: one row per chart type configuration
+description: Chart configuration metadata for analytics visualization
+common_questions:
+  - What chart types are available?
+  - How many chart configurations exist?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the chart type
+
+  - name: name
+    sql: name
+    type: string
+    description: Display name of the chart type
+
+  - name: tag
+    sql: tag
+    type: string
+    description: Tag/identifier for the chart type
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of chart types

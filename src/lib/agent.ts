@@ -4,7 +4,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import z from "zod";
 import { createMongoDBTools } from "./tools/execute-mongodb";
 import { getSchema, getConfiguredDatabaseNames } from "./mongodb";
-import { createSandbox } from "./tools/sandbox";
+import { getSandboxManager, writeResultToContainer } from "./sandbox";
 import { createSemanticBashTools } from "./tools/shell";
 
 
@@ -42,7 +42,7 @@ Use the bash tool to find relevant entities and fields:
 - \`grep -r "keyword" semantic/\` - Search for terms
 - \`cat semantic/entities/<name>.yml\` - Get entity details (field paths, lookups)
 
-Python 3 is available in the sandbox with pandas, numpy, pymongo, scipy for advanced analysis.
+Python 3 is available in the sandbox with pandas, numpy, scipy for advanced analysis.
 
 ### 2. MongoDB Query Building
 Construct MongoDB queries using collection names from entity definitions:
@@ -124,14 +124,32 @@ export async function runAgent({
   messages: UIMessage[];
   model?: string;
 }) {
-  const [sandboxInstance, systemPrompt] = await Promise.all([
-    createSandbox(),
+  const manager = getSandboxManager();
+  const [sandbox, systemPrompt] = await Promise.all([
+    manager.acquire(),
     buildSystemPrompt(),
   ]);
+  const sandboxInstance = { container: sandbox.container, stop: () => sandbox.release() };
   const { tools: bashTools } = await createSemanticBashTools(sandboxInstance);
-  const { tools: mongoTools } = createMongoDBTools(sandboxInstance);
+  const { tools: mongoTools } = createMongoDBTools();
 
-  const result = streamText({
+  const originalExecute = mongoTools.ExecuteMongoDB.execute!;
+  const wrappedExecuteMongoDB = {
+    ...mongoTools.ExecuteMongoDB,
+    execute: async (input: Parameters<typeof originalExecute>[0], options: Parameters<typeof originalExecute>[1]) => {
+      const result = await originalExecute(input, options);
+      if ("rows" in result && result.rows.length > 0) {
+        try {
+          await writeResultToContainer(sandbox.container, result as any);
+        } catch (err) {
+          console.warn("[Agent] Failed to write results to container:", err);
+        }
+      }
+      return result;
+    },
+  };
+
+  const streamResult = streamText({
     model: anthropic(model),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
@@ -144,13 +162,15 @@ export async function runAgent({
     ],
     tools: {
       bash: bashTools.bash,
-      ExecuteMongoDB: mongoTools.ExecuteMongoDB,
+      ExecuteMongoDB: wrappedExecuteMongoDB,
       FinalizeReport,
     },
-    // Container is persistent - no cleanup needed
+    onFinish: async () => {
+      await sandbox.release();
+    },
   });
 
-  return result;
+  return streamResult;
 }
 
 /**
@@ -164,14 +184,32 @@ export async function runAgentWithSandbox({
   messages: UIMessage[];
   model?: string;
 }) {
-  const [sandboxInstance, systemPrompt] = await Promise.all([
-    createSandbox(),
+  const manager = getSandboxManager();
+  const [sandbox, systemPrompt] = await Promise.all([
+    manager.acquire(),
     buildSystemPrompt(),
   ]);
+  const sandboxInstance = { container: sandbox.container, stop: () => sandbox.release() };
   const { tools: bashTools } = await createSemanticBashTools(sandboxInstance);
-  const { tools: mongoTools } = createMongoDBTools(sandboxInstance);
+  const { tools: mongoTools } = createMongoDBTools();
 
-  const result = streamText({
+  const originalExecute = mongoTools.ExecuteMongoDB.execute!;
+  const wrappedExecuteMongoDB = {
+    ...mongoTools.ExecuteMongoDB,
+    execute: async (input: Parameters<typeof originalExecute>[0], options: Parameters<typeof originalExecute>[1]) => {
+      const result = await originalExecute(input, options);
+      if ("rows" in result && result.rows.length > 0) {
+        try {
+          await writeResultToContainer(sandbox.container, result as any);
+        } catch (err) {
+          console.warn("[Agent] Failed to write results to container:", err);
+        }
+      }
+      return result;
+    },
+  };
+
+  const streamResult = streamText({
     model: anthropic(model),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
@@ -184,12 +222,12 @@ export async function runAgentWithSandbox({
     ],
     tools: {
       bash: bashTools.bash,
-      ExecuteMongoDB: mongoTools.ExecuteMongoDB,
+      ExecuteMongoDB: wrappedExecuteMongoDB,
       FinalizeReport,
     },
   });
 
-  return { result, container: sandboxInstance.container, stop: sandboxInstance.stop };
+  return { result: streamResult, container: sandbox.container, stop: () => sandbox.release() };
 }
 
 type FinalizeReportOutput = z.infer<typeof FinalizeReportSchema>;

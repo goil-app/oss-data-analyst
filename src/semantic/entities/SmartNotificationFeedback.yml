@@ -1,0 +1,69 @@
+name: SmartNotificationFeedback
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.SmartNotificationFeedback
+grain: one row per AI notification feedback
+description: Feedback on AI-generated notifications for measuring AI quality and user satisfaction
+common_questions:
+  - What is the feedback distribution (positive/negative)?
+  - Which AI models perform best?
+  - What types of prompts generate the best feedback?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the feedback
+
+  - name: prompt
+    sql: prompt
+    type: string
+    description: The prompt used to generate the notification
+
+  - name: notification
+    sql: notification
+    type: string
+    description: The generated notification content
+
+  - name: feedback
+    sql: feedback
+    type: string
+    description: User feedback (positive/negative/rating)
+
+  - name: modelUsed
+    sql: modelUsed
+    type: string
+    description: AI model used for generation
+
+  - name: iaUsed
+    sql: iaUsed
+    type: string
+    description: AI system used
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+time_dimensions:
+  - name: date
+    sql: date
+    type: time
+    description: Feedback timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of feedback entries
+
+  - name: positive_feedback_count
+    sql: _id
+    type: count
+    description: Count of positive feedback
+    filter: feedback = 'positive'
+
+  - name: by_model
+    sql: modelUsed
+    type: count_distinct
+    description: Count of models used

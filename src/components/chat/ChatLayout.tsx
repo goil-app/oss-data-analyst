@@ -54,8 +54,12 @@ import { Loader } from "@/components/ai-elements/loader";
 
 const models = [
   {
-    name: "Claude Opus 4.5",
-    value: "anthropic/claude-opus-4.5",
+    name: "Claude Opus 4.6",
+    value: "claude-opus-4-6",
+  },
+  {
+    name: "Claude Sonnet 4.6",
+    value: "claude-sonnet-4-6",
   },
 ];
 
@@ -206,7 +210,7 @@ const ChatBotDemo = () => {
                         part.output &&
                         typeof part.output === "object" &&
                         "narrative" in part.output &&
-                        "sql" in part.output &&
+                        "query" in part.output &&
                         "csvResults" in part.output
                     );
 

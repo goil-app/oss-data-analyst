@@ -1,0 +1,63 @@
+name: UserActivity
+type: fact_table
+database: AnalyticsDB
+table: AnalyticsDB.UserActivity
+grain: one row per user session/activity event
+description: User session and activity tracking data for analyzing user engagement patterns
+common_questions:
+  - How many active users per day/week/month?
+  - What devices and operating systems are most used?
+  - Which account types have the most activity?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the activity record
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account identifier
+
+  - name: accountTypeId
+    sql: accountTypeId
+    type: string
+    description: Type of account
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business identifier
+
+  - name: os
+    sql: os
+    type: string
+    description: Operating system used
+
+  - name: device
+    sql: device
+    type: string
+    description: Device type used
+
+time_dimensions:
+  - name: date
+    sql: date
+    type: time
+    description: Activity timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of user activities
+
+  - name: unique_accounts
+    sql: accountId
+    type: count_distinct
+    description: Number of unique accounts
+
+  - name: unique_businesses
+    sql: businessId
+    type: count_distinct
+    description: Number of unique businesses

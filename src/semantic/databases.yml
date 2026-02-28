@@ -1,0 +1,22 @@
+# Database Catalog
+# Lists all available MongoDB databases and their collections
+
+databases:
+  - name: ClientDB
+    description: Business tenant configuration, subscription plans, and client management data
+    collections:
+      - Business
+      - Plan
+
+  - name: AnalyticsDB
+    description: User activity, notifications, alerts, engagement tracking, and configuration data
+    collections:
+      - UserActivity
+      - AlertActions
+      - TrackNotifications
+      - NotificationRead
+      - Branding
+      - SmartNotificationFeedback
+      - WhatsAppMessageTracking
+      - Translation
+      - ChartType

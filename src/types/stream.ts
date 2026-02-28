@@ -20,7 +20,7 @@ export interface StreamEvent {
     | "error"
     | "done";
   toolName?: string;
-  sql?: string;
+  query?: string;
   columns?: Column[];
   rows?: Record<string, unknown>[];
   delta?: string;
@@ -47,7 +47,7 @@ export interface Column {
 export interface TableData {
   columns: Column[];
   rows: Record<string, unknown>[];
-  sql?: string;
+  query?: string;
   totalRows?: number;
   executionTime?: number;
 }

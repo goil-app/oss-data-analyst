@@ -169,16 +169,16 @@ const ResultsTable: React.FC<{ data: TableData }> = ({ data }) => {
   );
 };
 
-const SQLDisplay: React.FC<{ sql: string }> = ({ sql }) => {
+const QueryDisplay: React.FC<{ query: string }> = ({ query }) => {
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(sql);
+      await navigator.clipboard.writeText(query);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Failed to copy SQL:", err);
+      console.error("Failed to copy query:", err);
     }
   };
 
@@ -186,7 +186,7 @@ const SQLDisplay: React.FC<{ sql: string }> = ({ sql }) => {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-semibold text-bistre">
-          Generated SQL Query
+          MongoDB Query
         </h3>
         <button
           onClick={() => {
@@ -201,7 +201,7 @@ const SQLDisplay: React.FC<{ sql: string }> = ({ sql }) => {
 
       <div className="rounded-md overflow-hidden border border-gray3">
         <SyntaxHighlighter
-          language="sql"
+          language="json"
           style={oneDark}
           showLineNumbers
           customStyle={{
@@ -210,7 +210,7 @@ const SQLDisplay: React.FC<{ sql: string }> = ({ sql }) => {
             fontSize: "14px",
           }}
         >
-          {sql}
+          {query}
         </SyntaxHighlighter>
       </div>
     </div>
@@ -218,7 +218,7 @@ const SQLDisplay: React.FC<{ sql: string }> = ({ sql }) => {
 };
 
 export const ResultsModule: React.FC<ResultsModuleProps> = ({ data }) => {
-  const [activeTab, setActiveTab] = useState<"results" | "sql">("results");
+  const [activeTab, setActiveTab] = useState<"results" | "query">("results");
 
   return (
     <div className="bg-white border border-gray300 rounded-2xl overflow-hidden shadow-sm mt-6 animate-scale-in">
@@ -231,8 +231,8 @@ export const ResultsModule: React.FC<ResultsModuleProps> = ({ data }) => {
           >
             Results
           </Tab>
-          <Tab active={activeTab === "sql"} onClick={() => setActiveTab("sql")}>
-            SQL Query
+          <Tab active={activeTab === "query"} onClick={() => setActiveTab("query")}>
+            Query
           </Tab>
         </nav>
       </div>
@@ -240,7 +240,7 @@ export const ResultsModule: React.FC<ResultsModuleProps> = ({ data }) => {
       {/* Tab Content */}
       <div className="p-6">
         {activeTab === "results" && <ResultsTable data={data} />}
-        {activeTab === "sql" && data.sql && <SQLDisplay sql={data.sql} />}
+        {activeTab === "query" && data.query && <QueryDisplay query={data.query} />}
       </div>
     </div>
   );

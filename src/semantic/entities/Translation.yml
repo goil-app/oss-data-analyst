@@ -1,0 +1,54 @@
+name: Translation
+type: dimension_table
+database: AnalyticsDB
+table: AnalyticsDB.Translation
+grain: one row per translation entry
+description: i18n translations for multi-language support (Spanish, Catalan)
+common_questions:
+  - How many translations exist?
+  - Which tags have translations?
+  - What is the coverage of translations?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique identifier for the translation
+
+  - name: tag
+    sql: tag
+    type: string
+    description: Translation tag/key
+
+  - name: default
+    sql: default
+    type: string
+    description: Default (English) translation
+
+  - name: es
+    sql: es
+    type: string
+    description: Spanish translation
+
+  - name: ca
+    sql: ca
+    type: string
+    description: Catalan translation
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Count of translation entries
+
+  - name: with_spanish
+    sql: _id
+    type: count
+    description: Entries with Spanish translation
+    filter: es IS NOT NULL
+
+  - name: with_catalan
+    sql: _id
+    type: count
+    description: Entries with Catalan translation
+    filter: ca IS NOT NULL

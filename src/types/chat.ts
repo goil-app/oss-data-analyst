@@ -18,7 +18,7 @@ export interface AssistantResponse {
   results: {
     columns: Array<{ name: string; type?: string }>;
     rows: Array<Record<string, unknown>>;
-    sql?: string | null;
+    query?: string | null;
     totalRows: number;
   } | null;
   interpretation: string;

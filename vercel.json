@@ -1,9 +1,18 @@
 {
   "functions": {
-    "src/app/api/slack/events/route.ts": {
+    "src/app/api/discord/gateway/route.ts": {
+      "maxDuration": 800
+    },
+    "src/app/api/webhooks/discord/route.ts": {
       "maxDuration": 800
     }
   },
+  "crons": [
+    {
+      "path": "/api/discord/gateway",
+      "schedule": "*/10 * * * *"
+    }
+  ],
   "build": {
     "env": {
       "NODE_VERSION": "20"
