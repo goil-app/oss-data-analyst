@@ -164,6 +164,14 @@ async function prepareAgentStream({ messages, model, onFinish }: {
       FinalizeReport,
     },
     onFinish,
+    experimental_telemetry: {
+      isEnabled: process.env.OBSERVABILITY_ENABLED === 'true',
+      functionId: 'data-analyst-agent',
+      metadata: {
+        model,
+        messageCount: messages.length,
+      },
+    },
   });
 
   return { streamResult, sandbox };
