@@ -1,0 +1,104 @@
+name: Account
+type: dimension_table
+database: AccountDB
+table: AccountDB.Account
+grain: one row per user account
+description: User account registrations including type, role, validation status, and business association
+common_questions:
+  - How many accounts were created this month?
+  - How many accounts are blocked vs active?
+  - How many validated accounts per business?
+  - What is the account growth trend over time?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique account identifier (ObjectId)
+
+  - name: accountType
+    sql: accountType
+    type: string
+    description: Account type identifier (ObjectId ref to AccountType._id)
+
+  - name: username
+    sql: username
+    type: string
+    description: Account display name or username
+
+  - name: phone
+    sql: phone
+    type: string
+    description: Phone number associated with the account
+
+  - name: role
+    sql: role
+    type: string
+    description: Role identifier (ObjectId ref to AccountRole._id)
+
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Date and time the account was created
+
+  - name: subscribed
+    sql: subscribed
+    type: boolean
+    description: Whether the account is subscribed to notifications
+
+  - name: validated
+    sql: validated
+    type: boolean
+    description: Whether the account has been validated (e.g. phone verified)
+
+  - name: blocked
+    sql: blocked
+    type: boolean
+    description: Whether the account is blocked
+
+  - name: blockedDate
+    sql: blockedDate
+    type: time
+    description: Date the account was blocked
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: AccountType
+    database: AccountDB
+    collection: AccountType
+    type: many_to_one
+    local_field: accountType
+    foreign_field: _id
+    note: Both accountType and AccountType._id are ObjectId.
+
+  - name: AccountRole
+    database: AccountDB
+    collection: AccountRole
+    type: many_to_one
+    local_field: role
+    foreign_field: _id
+    note: Both role and AccountRole._id are ObjectId.
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of accounts
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-blocked accounts
+    filters:
+      - sql: "blocked = false OR blocked does not exist"
+
+  - name: validated_count
+    sql: _id
+    type: count_distinct
+    description: Number of validated accounts
+    filters:
+      - sql: "validated = true"

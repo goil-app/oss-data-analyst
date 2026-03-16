@@ -1,0 +1,54 @@
+name: Channel
+type: dimension_table
+database: AccountDB
+table: AccountDB.Channel
+grain: one row per communication channel
+description: Communication channels or topics used for grouping notifications and account subscriptions
+common_questions:
+  - How many channels exist per business?
+  - Which channels are active (not deleted)?
+  - What topics are covered by each channel?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique channel identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Channel display name
+
+  - name: topic
+    sql: topic
+    type: string
+    description: Channel topic or category
+
+  - name: status
+    sql: status
+    type: string
+    description: Channel status (e.g. active, inactive)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of channels
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted channels
+    filters:
+      - sql: "deleted = false OR deleted does not exist"

@@ -1,0 +1,49 @@
+name: AlertType
+type: dimension_table
+database: AlertDB
+table: AlertDB.AlertType
+grain: one row per alert category
+description: Alert category definitions with display color and soft-delete, scoped per business
+common_questions:
+  - What alert types are configured?
+  - How many alerts per alert type?
+  - Which alert types are active (not deleted)?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique alert type identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Alert type display name
+
+  - name: color
+    sql: color
+    type: string
+    description: Display color for the alert type (hex or named color)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of alert types
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted alert types
+    filters:
+      - sql: "deleted = false OR deleted does not exist"

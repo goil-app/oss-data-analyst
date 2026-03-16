@@ -4,6 +4,23 @@ import { validateDatabase, getDatabaseNames } from "@/lib/database-registry";
 import { executeFindQuery, executeAggregation } from "@/lib/mongodb";
 import { ObjectId, Decimal128 } from "mongodb";
 
+const PII_FIELDS = new Set(
+  (process.env.PII_FIELDS ?? "phone").split(",").map((s) => s.trim()).filter(Boolean)
+);
+
+function redactPiiFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactPiiFields);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+        k,
+        PII_FIELDS.has(k) ? "***" : redactPiiFields(v),
+      ])
+    );
+  }
+  return value;
+}
+
 // Security: Block dangerous aggregation stages that write data
 const FORBIDDEN_PIPELINE_STAGES = [
   "$out",
@@ -115,7 +132,7 @@ Results are automatically saved to the sandbox at /tmp/mongodb_result.json and /
         }
 
         // Serialize BSON types to JSON-safe values
-        const rows = serializeBsonValues(result.rows) as any[];
+        const rows = redactPiiFields(serializeBsonValues(result.rows)) as any[];
 
         const columns = result.columns.map((col) => ({
           name: col,

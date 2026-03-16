@@ -1,0 +1,128 @@
+name: EventV2
+type: fact_table
+database: EventDB
+table: EventDB.EventV2
+grain: one row per bookable event or appointment
+description: Current-generation bookable events/appointments with embedded attendees array, pricing, sharing mode, and recurrence. The older Event collection is deprecated — use EventV2.
+common_questions:
+  - How many events were created this month?
+  - What is the distribution of events by status?
+  - How many events require payment?
+  - What is the average event price?
+  - How many recurring events are there?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique event identifier (ObjectId)
+
+  - name: startDate
+    sql: startDate
+    type: time
+    description: Event start date and time
+
+  - name: endDate
+    sql: endDate
+    type: time
+    description: Event end date and time
+
+  - name: status
+    sql: status
+    type: string
+    description: Event status (e.g. scheduled, cancelled, completed)
+
+  - name: sharingMode
+    sql: sharingMode
+    type: string
+    description: Visibility/sharing mode (e.g. public, private, restricted)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+  - name: limitAttendees
+    sql: limitAttendees
+    type: number
+    description: Maximum number of attendees allowed
+
+  - name: attendees
+    sql: attendees
+    type: string
+    description: Embedded array of attendee objects (no separate attendance collection for V2)
+
+  - name: owners
+    sql: owners
+    type: string
+    description: Array of owner account identifiers (ObjectIds)
+
+  - name: location
+    sql: location
+    type: string
+    description: Event location (embedded object or string)
+
+  - name: isAnswerAllowed
+    sql: isAnswerAllowed
+    type: boolean
+    description: Whether attendees can RSVP/answer
+
+  - name: maxDateAnswer
+    sql: maxDateAnswer
+    type: time
+    description: Deadline for attendee RSVP
+
+  - name: isRecursive
+    sql: isRecursive
+    type: boolean
+    description: Whether the event recurs on a schedule
+
+  - name: price
+    sql: price
+    type: number
+    description: Event price (0 = free)
+
+  - name: isPaymentNeeded
+    sql: isPaymentNeeded
+    type: boolean
+    description: Whether payment is required to attend
+
+  - name: tags
+    sql: tags
+    type: string
+    description: Array of tag strings for categorization
+
+  - name: createdAt
+    sql: createdAt
+    type: time
+    description: Record creation timestamp
+
+  - name: updatedAt
+    sql: updatedAt
+    type: time
+    description: Record last updated timestamp
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of events
+
+  - name: paid_count
+    sql: _id
+    type: count_distinct
+    description: Number of events requiring payment
+    filters:
+      - sql: "isPaymentNeeded = true"
+
+  - name: avg_price
+    sql: price
+    type: avg
+    description: Average price of events (including free)
+
+  - name: recurring_count
+    sql: _id
+    type: count_distinct
+    description: Number of recurring events
+    filters:
+      - sql: "isRecursive = true"

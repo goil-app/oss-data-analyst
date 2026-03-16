@@ -1,0 +1,49 @@
+name: AccountRole
+type: dimension_table
+database: AccountDB
+table: AccountDB.AccountRole
+grain: one row per permission role
+description: Permission roles defining access levels for accounts, scoped to one or more businesses
+common_questions:
+  - What roles are defined?
+  - Which roles have the highest access level?
+  - How many roles per business?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique role identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Role display name
+
+  - name: accessLevel
+    sql: accessLevel
+    type: number
+    description: Numeric access level (higher = more permissions)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: businessIds
+    sql: businessIds
+    type: string
+    description: Array of business identifiers (ObjectIds) this role applies to
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of roles
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted roles
+    filters:
+      - sql: "deleted = false OR deleted does not exist"

@@ -1,0 +1,95 @@
+name: Alert
+type: fact_table
+database: AlertDB
+table: AlertDB.Alert
+grain: one row per emergency alert
+description: Core emergency alert records including creator, type, state, status, region, and resolution time
+common_questions:
+  - How many alerts were created this month?
+  - What is the average alert resolution time by type?
+  - How many alerts are open vs closed?
+  - Show alert volume by region
+  - What is the alert status distribution?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique alert identifier (ObjectId)
+
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Alert creation timestamp
+
+  - name: modificationDate
+    sql: modificationDate
+    type: time
+    description: Last modification timestamp
+
+  - name: userId
+    sql: userId
+    type: string
+    description: Account that created the alert (ObjectId)
+
+  - name: userType
+    sql: userType
+    type: string
+    description: Type of the user who created the alert
+
+  - name: state
+    sql: state
+    type: string
+    description: Current alert state (e.g. pending, active, resolved)
+
+  - name: alertType
+    sql: alertType
+    type: string
+    description: Alert type identifier (ObjectId ref to AlertType._id)
+
+  - name: status
+    sql: status
+    type: string
+    description: Alert status (e.g. open, closed)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+  - name: region
+    sql: region
+    type: string
+    description: Geographic region of the alert
+
+  - name: timeOpen
+    sql: timeOpen
+    type: number
+    description: Time the alert was open in seconds/milliseconds
+
+joins:
+  - name: AlertType
+    database: AlertDB
+    collection: AlertType
+    type: many_to_one
+    local_field: alertType
+    foreign_field: _id
+    note: Both alertType and AlertType._id are ObjectId.
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of alerts
+
+  - name: open_count
+    sql: _id
+    type: count_distinct
+    description: Number of currently open alerts
+    filters:
+      - sql: "status = 'open'"
+
+  - name: avg_time_open
+    sql: timeOpen
+    type: avg
+    description: Average time alerts remain open

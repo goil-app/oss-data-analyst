@@ -20,3 +20,39 @@ databases:
       - WhatsAppMessageTracking
       - Translation
       - ChartType
+
+  - name: AccountDB
+    description: User accounts, roles, sessions, and communication channel subscriptions
+    collections:
+      - Account
+      - AccountType
+      - AccountRole
+      - AccountSessionInfo
+      - Channel
+      - ChannelAccount
+
+  - name: AlertDB
+    description: Emergency alerts, alert types, state transition records, and GPS location trails
+    collections:
+      - Alert
+      - AlertType
+      - AlertRecord
+      - AlertLocation
+
+  - name: NotificationDB
+    description: Push notification records and per-user read/archive status
+    collections:
+      - Notification
+      - NotificationAccountArchive
+
+  - name: EventDB
+    description: Bookable events and appointments with attendee tracking
+    collections:
+      - EventV2
+
+  - name: DocumentDB
+    description: Digital wallets, vouchers, and wallet transaction history
+    collections:
+      - Wallet
+      - WalletHistory
+      - WalletType

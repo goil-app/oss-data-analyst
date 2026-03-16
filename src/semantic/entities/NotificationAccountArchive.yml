@@ -1,0 +1,65 @@
+name: NotificationAccountArchive
+type: fact_table
+database: NotificationDB
+table: NotificationDB.NotificationAccountArchive
+grain: one row per account-notification read/archive record
+description: Per-user read and archive status for notifications — use to compute read rates and engagement per account type
+common_questions:
+  - What is the notification read rate per account type?
+  - How many notifications has each account archived?
+  - Show read/archive trends over time
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique archive record identifier (ObjectId)
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Account that read/archived the notification (ObjectId)
+
+  - name: notificationId
+    sql: notificationId
+    type: string
+    description: Associated notification identifier (ObjectId ref to Notification._id)
+
+  - name: updatedAt
+    sql: updatedAt
+    type: time
+    description: Timestamp of the last read/archive action
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag (archived/dismissed)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: Notification
+    database: NotificationDB
+    collection: Notification
+    type: many_to_one
+    local_field: notificationId
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of read/archive records
+
+  - name: unique_accounts
+    sql: accountId
+    type: count_distinct
+    description: Number of distinct accounts who have read or archived notifications
+
+  - name: unique_notifications_read
+    sql: notificationId
+    type: count_distinct
+    description: Number of distinct notifications that have been read/archived

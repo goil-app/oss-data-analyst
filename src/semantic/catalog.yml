@@ -160,3 +160,188 @@ entities:
     use_cases: >-
       Visualization configuration
       Chart type management
+
+  - name: Account
+    grain: one row per user account
+    description: >-
+      User account registrations including type, role, phone, validation status, blocked status, and business association.
+    fields: ['_id', 'accountType', 'username', 'phone', 'role', 'creationDate', 'subscribed', 'validated', 'blocked', 'blockedDate', 'businessId']
+    example_questions:
+      - How many accounts were created this month?
+      - How many accounts are blocked vs active?
+      - How many validated accounts per business?
+      - What is the account growth trend over time?
+    use_cases: >-
+      User registration analytics
+      Account health monitoring
+      Growth tracking by business
+
+  - name: AccountType
+    grain: one row per account type
+    description: >-
+      Definitions of user/role types on the platform with ordering index and soft-delete.
+    fields: ['_id', 'name', 'index', 'businessId', 'deleted']
+    example_questions:
+      - What account types exist?
+      - How many accounts per account type?
+      - Which account types are active?
+    use_cases: >-
+      Account segmentation
+      Role type catalog
+
+  - name: AccountRole
+    grain: one row per permission role
+    description: >-
+      Permission roles defining access levels for accounts, scoped to one or more businesses.
+    fields: ['_id', 'name', 'accessLevel', 'deleted', 'businessIds']
+    example_questions:
+      - What roles are defined?
+      - Which roles have the highest access level?
+    use_cases: >-
+      Permission role catalog
+      Access level analysis
+
+  - name: AccountSessionInfo
+    grain: one row per active user session
+    description: >-
+      Active session records per account capturing platform, device, OS, and language for DAU and platform breakdown.
+    fields: ['_id', 'accountId', 'clientPlatform', 'language', 'platform', 'deviceClientModel', 'deviceClientOS', 'deviceClientType', 'creationDate', 'lastUpdated', 'businessId']
+    example_questions:
+      - How many daily active users (DAU)?
+      - What platforms do users use?
+      - What is the device distribution across sessions?
+      - Which languages are most common?
+    use_cases: >-
+      DAU tracking
+      Platform and device analytics
+      Language distribution
+
+  - name: Channel
+    grain: one row per communication channel
+    description: >-
+      Communication channels or topics used for grouping notifications and account subscriptions.
+    fields: ['_id', 'name', 'topic', 'status', 'deleted', 'businessId']
+    example_questions:
+      - How many channels exist per business?
+      - Which channels are active?
+    use_cases: >-
+      Channel catalog management
+      Subscription segmentation
+
+  - name: ChannelAccount
+    grain: one row per account-channel subscription
+    description: >-
+      User subscriptions to channels — tracks which accounts subscribe to which channels and when.
+    fields: ['_id', 'accountId', 'channelId', 'subscribed', 'deleted', 'createdAt', 'businessId']
+    example_questions:
+      - How many subscribers does each channel have?
+      - What is the subscription trend over time?
+    use_cases: >-
+      Channel subscription analytics
+      Audience sizing per channel
+
+  - name: Alert
+    grain: one row per emergency alert
+    description: >-
+      Core emergency alert records including creator, type, state, status, region, and time open for resolution analytics.
+    fields: ['_id', 'creationDate', 'modificationDate', 'userId', 'userType', 'state', 'alertType', 'status', 'businessId', 'region', 'timeOpen']
+    example_questions:
+      - How many alerts were created this month?
+      - What is the average alert resolution time by type?
+      - How many alerts are open vs closed?
+      - Show alert volume by region
+    use_cases: >-
+      Emergency alert monitoring
+      Resolution time analysis
+      Regional distribution
+
+  - name: AlertType
+    grain: one row per alert category
+    description: >-
+      Alert category definitions with display color and soft-delete, scoped per business.
+    fields: ['_id', 'name', 'color', 'deleted', 'businessId']
+    example_questions:
+      - What alert types are configured?
+      - How many alerts per alert type?
+    use_cases: >-
+      Alert type catalog
+      Alert segmentation by category
+
+  - name: AlertRecord
+    grain: one row per alert state transition
+    description: >-
+      State transition log for alerts capturing each step in the alert workflow for funnel and process analysis.
+    fields: ['_id', 'account', 'alert', 'date', 'lastState', 'nextState', 'businessId']
+    example_questions:
+      - How many state transitions happen per alert on average?
+      - What is the most common state transition path?
+      - How long do alerts spend in each state?
+    use_cases: >-
+      Alert workflow funnel analysis
+      State transition reporting
+
+  - name: AlertLocation
+    grain: one row per GPS location point for an alert
+    description: >-
+      GPS trail of location points captured during an alert for geographic analysis.
+    fields: ['_id', 'alert', 'latitude', 'longitude', 'creationDate', 'businessId']
+    example_questions:
+      - How many location points are recorded per alert?
+      - What is the geographic distribution of alerts?
+    use_cases: >-
+      Alert geographic analysis
+      Response routing
+
+  - name: Notification
+    grain: one row per push notification
+    description: >-
+      Push notification records with type, channel, topic, pinned status, and soft-delete.
+    fields: ['_id', 'title', 'body', 'type', 'creationDate', 'topic', 'channel', 'businessId', 'deleted', 'isPinned']
+    example_questions:
+      - How many notifications were sent this month?
+      - What is the breakdown of notifications by type?
+      - Which channels have the most notifications?
+    use_cases: >-
+      Notification volume reporting
+      Channel and type distribution
+
+  - name: NotificationAccountArchive
+    grain: one row per account-notification read/archive record
+    description: >-
+      Per-user read and archive status for notifications — use to compute read rates and engagement per account type.
+    fields: ['_id', 'accountId', 'notificationId', 'updatedAt', 'deleted', 'businessId']
+    example_questions:
+      - What is the notification read rate per account type?
+      - How many notifications has each account archived?
+      - Show notification read rate trends over time
+    use_cases: >-
+      Notification read rate analytics
+      Per-user engagement tracking
+
+  - name: EventV2
+    grain: one row per bookable event or appointment
+    description: >-
+      Current-generation bookable events/appointments with embedded attendees, pricing, sharing mode, and recurrence. The older Event collection is deprecated — use EventV2.
+    fields: ['_id', 'startDate', 'endDate', 'status', 'sharingMode', 'businessId', 'limitAttendees', 'attendees', 'owners', 'location', 'isAnswerAllowed', 'maxDateAnswer', 'isRecursive', 'price', 'isPaymentNeeded', 'tags', 'createdAt', 'updatedAt']
+    example_questions:
+      - How many events were created this month?
+      - What is the distribution of events by status?
+      - How many events require payment?
+      - What is the average event price?
+    use_cases: >-
+      Event volume and status reporting
+      Paid vs free event analysis
+      Scheduling analytics
+
+  - name: Wallet
+    grain: one row per digital wallet or voucher
+    description: >-
+      Digital wallets and vouchers with type, expiration date, usage limits, and soft-delete.
+    fields: ['_id', 'walletNumber', 'walletTypeId', 'expirationDate', 'limitUsages', 'businessId', 'deleted']
+    example_questions:
+      - How many wallets are active vs expired?
+      - What is the distribution of wallets by type?
+      - How many wallets have a usage limit?
+    use_cases: >-
+      Wallet inventory reporting
+      Voucher type distribution

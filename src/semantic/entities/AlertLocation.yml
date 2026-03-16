@@ -1,0 +1,60 @@
+name: AlertLocation
+type: fact_table
+database: AlertDB
+table: AlertDB.AlertLocation
+grain: one row per GPS location point for an alert
+description: GPS trail of location points captured during an alert — useful for geographic analysis and response routing
+common_questions:
+  - How many location points are recorded per alert?
+  - What is the geographic distribution of alerts?
+  - Show alerts by latitude/longitude clusters
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique location record identifier (ObjectId)
+
+  - name: alert
+    sql: alert
+    type: string
+    description: Associated alert identifier (ObjectId ref to Alert._id)
+
+  - name: latitude
+    sql: latitude
+    type: number
+    description: GPS latitude coordinate
+
+  - name: longitude
+    sql: longitude
+    type: number
+    description: GPS longitude coordinate
+
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Timestamp when this location point was recorded
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: Alert
+    database: AlertDB
+    collection: Alert
+    type: many_to_one
+    local_field: alert
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of location points recorded
+
+  - name: unique_alerts
+    sql: alert
+    type: count_distinct
+    description: Number of distinct alerts with location data

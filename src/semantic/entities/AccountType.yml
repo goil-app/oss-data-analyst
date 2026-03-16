@@ -1,0 +1,49 @@
+name: AccountType
+type: dimension_table
+database: AccountDB
+table: AccountDB.AccountType
+grain: one row per account type
+description: Definitions of user/role types on the platform (e.g. citizen, admin, operator) with ordering index and soft-delete
+common_questions:
+  - What account types exist?
+  - How many accounts per account type?
+  - Which account types are active (not deleted)?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique account type identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Account type display name
+
+  - name: index
+    sql: index
+    type: number
+    description: Ordering index for display purposes
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of account types
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted account types
+    filters:
+      - sql: "deleted = false OR deleted does not exist"

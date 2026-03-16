@@ -1,0 +1,82 @@
+name: Notification
+type: dimension_table
+database: NotificationDB
+table: NotificationDB.Notification
+grain: one row per push notification
+description: Push notification records with type, channel, topic, pinned status, and soft-delete
+common_questions:
+  - How many notifications were sent this month?
+  - What is the breakdown of notifications by type?
+  - Which channels have the most notifications?
+  - How many pinned notifications are active?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique notification identifier (ObjectId)
+
+  - name: title
+    sql: title
+    type: string
+    description: Notification title
+
+  - name: body
+    sql: body
+    type: string
+    description: Notification body text
+
+  - name: type
+    sql: type
+    type: string
+    description: Notification type (e.g. alert, info, promo)
+
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Notification creation timestamp
+
+  - name: topic
+    sql: topic
+    type: string
+    description: Notification topic or category
+
+  - name: channel
+    sql: channel
+    type: string
+    description: Delivery channel identifier (ObjectId ref to AccountDB.Channel)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: isPinned
+    sql: isPinned
+    type: boolean
+    description: Whether the notification is pinned (stays at top of inbox)
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of notifications
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted notifications
+    filters:
+      - sql: "deleted = false OR deleted does not exist"
+
+  - name: pinned_count
+    sql: _id
+    type: count_distinct
+    description: Number of pinned notifications
+    filters:
+      - sql: "isPinned = true"

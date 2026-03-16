@@ -1,0 +1,66 @@
+name: AlertRecord
+type: fact_table
+database: AlertDB
+table: AlertDB.AlertRecord
+grain: one row per alert state transition
+description: State transition log for alerts — captures each step in the alert workflow for funnel and process analysis
+common_questions:
+  - How many state transitions happen per alert on average?
+  - What is the most common state transition path?
+  - How long do alerts spend in each state?
+  - Show transition volume by lastState and nextState
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique record identifier (ObjectId)
+
+  - name: account
+    sql: account
+    type: string
+    description: Account that triggered the transition (ObjectId)
+
+  - name: alert
+    sql: alert
+    type: string
+    description: Associated alert identifier (ObjectId ref to Alert._id)
+
+  - name: date
+    sql: date
+    type: time
+    description: Timestamp of the state transition
+
+  - name: lastState
+    sql: lastState
+    type: string
+    description: State before the transition
+
+  - name: nextState
+    sql: nextState
+    type: string
+    description: State after the transition
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: Alert
+    database: AlertDB
+    collection: Alert
+    type: many_to_one
+    local_field: alert
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of state transitions
+
+  - name: unique_alerts
+    sql: alert
+    type: count_distinct
+    description: Number of distinct alerts with recorded transitions

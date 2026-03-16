@@ -1,0 +1,79 @@
+name: ChannelAccount
+type: fact_table
+database: AccountDB
+table: AccountDB.ChannelAccount
+grain: one row per account-channel subscription
+description: User subscriptions to channels — tracks which accounts are subscribed to which channels and when
+common_questions:
+  - How many subscribers does each channel have?
+  - How many channels is each account subscribed to?
+  - What is the subscription trend over time?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique subscription identifier (ObjectId)
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Subscribed account identifier (ObjectId)
+
+  - name: channelId
+    sql: channelId
+    type: string
+    description: Channel identifier (ObjectId)
+
+  - name: subscribed
+    sql: subscribed
+    type: boolean
+    description: Whether the account is currently subscribed
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+  - name: createdAt
+    sql: createdAt
+    type: time
+    description: Subscription creation timestamp
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: Account
+    database: AccountDB
+    collection: Account
+    type: many_to_one
+    local_field: accountId
+    foreign_field: _id
+
+  - name: Channel
+    database: AccountDB
+    collection: Channel
+    type: many_to_one
+    local_field: channelId
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of channel subscriptions
+
+  - name: active_subscriptions
+    sql: _id
+    type: count_distinct
+    description: Number of active (non-deleted, subscribed) subscriptions
+    filters:
+      - sql: "deleted = false AND subscribed = true"
+
+  - name: unique_subscribers
+    sql: accountId
+    type: count_distinct
+    description: Number of distinct accounts subscribed to channels

@@ -1,0 +1,86 @@
+name: AccountSessionInfo
+type: fact_table
+database: AccountDB
+table: AccountDB.AccountSessionInfo
+grain: one row per active user session
+description: Active session records per account, capturing platform, device, OS, and language for DAU and platform breakdown analysis
+common_questions:
+  - How many daily active users (DAU)?
+  - What platforms do users use (iOS, Android, web)?
+  - What is the device distribution across sessions?
+  - Which languages are most common?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique session identifier (ObjectId)
+
+  - name: accountId
+    sql: accountId
+    type: string
+    description: Associated account identifier (ObjectId)
+
+  - name: clientPlatform
+    sql: clientPlatform
+    type: string
+    description: Client platform identifier (e.g. mobile app, web)
+
+  - name: language
+    sql: language
+    type: string
+    description: User language preference (e.g. es, en, ca)
+
+  - name: platform
+    sql: platform
+    type: string
+    description: OS platform (e.g. ios, android, web)
+
+  - name: deviceClientModel
+    sql: deviceClientModel
+    type: string
+    description: Device model name
+
+  - name: deviceClientOS
+    sql: deviceClientOS
+    type: string
+    description: Device operating system version
+
+  - name: deviceClientType
+    sql: deviceClientType
+    type: string
+    description: Device type (e.g. smartphone, tablet)
+
+  - name: creationDate
+    sql: creationDate
+    type: time
+    description: Session creation date
+
+  - name: lastUpdated
+    sql: lastUpdated
+    type: time
+    description: Last session activity timestamp
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+joins:
+  - name: Account
+    database: AccountDB
+    collection: Account
+    type: many_to_one
+    local_field: accountId
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of active sessions
+
+  - name: unique_accounts
+    sql: accountId
+    type: count_distinct
+    description: Number of distinct active accounts (DAU proxy)

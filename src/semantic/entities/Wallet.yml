@@ -1,0 +1,67 @@
+name: Wallet
+type: dimension_table
+database: DocumentDB
+table: DocumentDB.Wallet
+grain: one row per digital wallet or voucher
+description: Digital wallets and vouchers with type, expiration, usage limits, and soft-delete
+common_questions:
+  - How many wallets are active vs expired?
+  - What is the distribution of wallets by type?
+  - How many wallets have reached their usage limit?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Unique wallet identifier (ObjectId)
+
+  - name: walletNumber
+    sql: walletNumber
+    type: string
+    description: Human-readable wallet number or code
+
+  - name: walletTypeId
+    sql: walletTypeId
+    type: string
+    description: Wallet type identifier (ObjectId ref to WalletType._id)
+
+  - name: expirationDate
+    sql: expirationDate
+    type: time
+    description: Date when the wallet expires
+
+  - name: limitUsages
+    sql: limitUsages
+    type: number
+    description: Maximum number of times the wallet can be used (null = unlimited)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Associated business identifier (ObjectId)
+
+  - name: deleted
+    sql: deleted
+    type: boolean
+    description: Soft-delete flag
+
+joins:
+  - name: WalletType
+    database: DocumentDB
+    collection: WalletType
+    type: many_to_one
+    local_field: walletTypeId
+    foreign_field: _id
+
+measures:
+  - name: count
+    sql: _id
+    type: count_distinct
+    description: Total number of wallets
+
+  - name: active_count
+    sql: _id
+    type: count_distinct
+    description: Number of non-deleted wallets
+    filters:
+      - sql: "deleted = false OR deleted does not exist"
