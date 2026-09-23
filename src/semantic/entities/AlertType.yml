@@ -2,8 +2,10 @@ name: AlertType
 type: dimension_table
 database: AlertDB
 table: AlertDB.AlertType
-grain: one row per alert category
-description: Alert category definitions with display color and soft-delete, scoped per business
+grain: one row per alert type / app section
+description: >-
+  Alert type definitions, scoped per business. Despite the name, an AlertType is any app "section" button;
+  trackingType says what it is. Real alerts (panic button) are trackingType 1-4.
 common_questions:
   - What alert types are configured?
   - How many alerts per alert type?
@@ -18,7 +20,24 @@ dimensions:
   - name: name
     sql: name
     type: string
-    description: Alert type display name
+    description: >-
+      NOT the display name: an ObjectId ref to AlertDB.Translation._id. The readable name is Translation.ca / .es / .default
+      (see the Alert entity example pipeline). Also: description is a Translation id too.
+
+  - name: trackingType
+    sql: trackingType
+    type: number
+    description: >-
+      What the section does. 1 BASIC alert, 2 alert WITH_IMAGE, 3 CONSTANT_GEO alert (continuous location),
+      4 GEO_ADDITIONAL_STREET alert  <- these four are the panic button / real alerts.
+      Others: 5 URL, 6 DOCUMENT_LIST, 7 NOTIFICATION, 8 AUDIO_FILE, 9 CHANNELS, 10 ZONE_TRACKING, 11 RETAIL, 12 QR,
+      13 EVENT, 14 CALENDAR_USER, 15 CALENDAR_VIEW_USER, 16 CALENDAR_MANAGER, 19 CHAT, 20 MAP, 21 CHANGE_USER_GROUP,
+      22 TIME_TRACKING, 23 IA_ASSISTANT, 24 PAYMENT_REQUIRED, 25 MODULE.
+
+  - name: startingState
+    sql: startingState
+    type: string
+    description: Workflow state id new alerts start in (null = first state of the workflow)
 
   - name: color
     sql: color
@@ -28,7 +47,7 @@ dimensions:
   - name: deleted
     sql: deleted
     type: boolean
-    description: Soft-delete flag
+    description: Soft-delete flag. Deleted types still have historical alerts; many deleted types were tests.
 
   - name: businessId
     sql: businessId
@@ -47,3 +66,11 @@ measures:
     description: Number of non-deleted alert types
     filters:
       - sql: "deleted = false OR deleted does not exist"
+
+joins:
+  - name: Translation
+    database: AlertDB
+    collection: Translation
+    type: many_to_one
+    local_field: name
+    foreign_field: _id

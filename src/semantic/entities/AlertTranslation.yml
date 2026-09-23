@@ -1,0 +1,41 @@
+name: AlertTranslation
+type: dimension_table
+database: AlertDB
+table: AlertDB.Translation
+grain: one row per translatable text in the alerts module
+description: >-
+  Readable names for alert types, workflow states and other alert texts. Different from AnalyticsDB.Translation:
+  alert-related names (AlertType.name, Workflow.name, Workflow.states.name) live HERE, in AlertDB.
+common_questions:
+  - What is the readable name of an alert type or alert state?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Translation identifier (ObjectId), referenced by AlertType.name, AlertType.description, Workflow.name, Workflow.states.name
+
+  - name: tag
+    sql: tag
+    type: string
+    description: Kind of text, e.g. "AlertType:...", "Workflow:...", "AlertStateName:..."
+
+  - name: ca
+    sql: ca
+    type: string
+    description: Catalan text (prefer this)
+
+  - name: es
+    sql: es
+    type: string
+    description: Spanish text
+
+  - name: default
+    sql: default
+    type: string
+    description: Default text, fallback when ca is missing
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business (tenant) identifier (ObjectId)
