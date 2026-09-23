@@ -243,8 +243,8 @@ entities:
   - name: Alert
     grain: one row per emergency alert
     description: >-
-      Core emergency alert records including creator, type, state, status, region, and time open for resolution analytics.
-    fields: ['_id', 'creationDate', 'modificationDate', 'userId', 'userType', 'state', 'alertType', 'status', 'businessId', 'region', 'timeOpen']
+      Core alert records (panic button / "botó de pànic") including creator, type, workflow state, business, region, city and time open.
+    fields: ['_id', 'creationDate', 'modificationDate', 'userId', 'userType', 'state', 'alertType', 'status', 'businessId', 'region', 'location.city', 'location.postalCode', 'timeOpen']
     example_questions:
       - How many alerts were created this month?
       - What is the average alert resolution time by type?
@@ -258,14 +258,34 @@ entities:
   - name: AlertType
     grain: one row per alert category
     description: >-
-      Alert category definitions with display color and soft-delete, scoped per business.
-    fields: ['_id', 'name', 'color', 'deleted', 'businessId']
+      Alert type / app section definitions per business. trackingType 1-4 = real alerts (panic button); other values are sections (calendar, chat, URL...).
+    fields: ['_id', 'name', 'trackingType', 'startingState', 'color', 'deleted', 'businessId']
     example_questions:
       - What alert types are configured?
       - How many alerts per alert type?
     use_cases: >-
       Alert type catalog
       Alert segmentation by category
+
+  - name: AlertTranslation
+    grain: one row per translatable alert text
+    description: >-
+      Readable names (ca/es/default) for alert types and workflow states, in AlertDB (not AnalyticsDB.Translation).
+    fields: ['_id', 'tag', 'ca', 'es', 'default', 'businessId']
+    example_questions:
+      - What is the readable name of this alert type?
+    use_cases: >-
+      Resolving AlertType.name and Workflow state names
+
+  - name: Workflow
+    grain: one row per alert workflow
+    description: >-
+      Alert workflows with embedded states[]; Alert.state matches states._id and states.isClosedState tells open vs closed.
+    fields: ['_id', 'name', 'states._id', 'states.name', 'states.index', 'states.isClosedState', 'businessId']
+    example_questions:
+      - How many alerts are open vs closed?
+    use_cases: >-
+      Alert state names and open/closed analysis
 
   - name: AlertRecord
     grain: one row per alert state transition

@@ -38,6 +38,8 @@ databases:
       - AlertType
       - AlertRecord
       - AlertLocation
+      - Translation
+      - Workflow
 
   - name: NotificationDB
     description: Push notification records and per-user read/archive status

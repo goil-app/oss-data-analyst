@@ -1,290 +1,134 @@
-import { MongoClient, MongoClientOptions, ObjectId } from "mongodb";
-import { getDatabaseConfigs, validateDatabase } from "./database-registry";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { load } from "js-yaml";
+import { EJSON } from "bson";
+import { MongoClient, ObjectId, type Document } from "mongodb";
+import { assertSafeQuery, PII_FIELDS, QueryRejected } from "./query-guard";
 
-const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+export const SEMANTIC_DIR = path.join(process.cwd(), "src/semantic");
 
-/**
- * Recursively converts 24-hex strings to ObjectId so agent filters match stored ObjectId fields.
- */
-function deserializeObjectIds(value: any): any {
-  if (typeof value === "string" && OBJECT_ID_REGEX.test(value)) {
-    return new ObjectId(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(deserializeObjectIds);
-  }
-  if (value !== null && typeof value === "object" && !(value instanceof ObjectId)) {
+/** databases.yml is the allowlist: only these databases and collections can be queried. */
+export const DATABASES = new Map(
+  (load(readFileSync(path.join(SEMANTIC_DIR, "databases.yml"), "utf8")) as {
+    databases: { name: string; collections: string[] }[];
+  }).databases.map((d) => [d.name, new Set(d.collections)])
+);
+
+const MAX_TIME_MS = 30_000;
+const MAX_ROWS = 1000;
+const WRITE_ACTIONS = new Set([
+  "insert", "update", "remove", "createCollection", "dropCollection", "dropDatabase",
+  "createIndex", "dropIndex", "renameCollectionSameDB", "collMod", "bypassDocumentValidation",
+]);
+
+let clientPromise: Promise<MongoClient> | null = null;
+
+/** Refuses (in production) to run with a MongoDB user that can write. */
+async function assertReadOnlyUser(client: MongoClient) {
+  const { authInfo } = await client.db("admin").command({ connectionStatus: 1, showPrivileges: true });
+  const writes = new Set<string>(
+    authInfo.authenticatedUserPrivileges.flatMap((p: { actions: string[] }) => p.actions).filter((a: string) => WRITE_ACTIONS.has(a))
+  );
+  const problem = authInfo.authenticatedUsers.length === 0
+    ? "MongoDB connection is unauthenticated"
+    : writes.size > 0 && `MongoDB user has write privileges (${[...writes].join(", ")})`;
+  if (!problem) return;
+  if (process.env.NODE_ENV === "production") throw new Error(`${problem}. Use a read-only user.`);
+  console.warn(`[MongoDB] WARNING: ${problem}. Production requires a read-only user.`);
+}
+
+function getClient(): Promise<MongoClient> {
+  clientPromise ??= MongoClient.connect(process.env.MONGODB_URI!, {
+    maxPoolSize: 5,
+    readPreference: "secondaryPreferred",
+  })
+    .then(async (client) => {
+      await assertReadOnlyUser(client);
+      return client;
+    })
+    .catch((err) => {
+      clientPromise = null;
+      throw err;
+    });
+  return clientPromise;
+}
+
+/** Parses Extended JSON ({"$date": ...}, {"$oid": ...}) and converts 24-hex strings to ObjectId so agent filters match stored types. */
+function deserialize(value: unknown): unknown {
+  return deserializeObjectIds(EJSON.deserialize(value as Document));
+}
+
+function deserializeObjectIds(value: unknown): unknown {
+  if (typeof value === "string" && /^[0-9a-fA-F]{24}$/.test(value)) return new ObjectId(value);
+  if (Array.isArray(value)) return value.map(deserializeObjectIds);
+  if (value !== null && typeof value === "object" && !(value instanceof ObjectId) && !(value instanceof Date)) {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, deserializeObjectIds(v)]));
   }
   return value;
 }
 
-let client: MongoClient | null = null;
-let clientPromise: Promise<MongoClient> | null = null;
-
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/oss-data-analyst";
-
-/**
- * Get or create MongoDB client connection
- */
-export function getMongoClient(): Promise<MongoClient> {
-  if (clientPromise) {
-    return clientPromise;
-  }
-
-  const options: MongoClientOptions = {
-    maxPoolSize: 10,
-    minPoolSize: 1,
-  };
-
-  console.log(`[MongoDB] Connecting to: ${MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
-
-  clientPromise = MongoClient.connect(MONGODB_URI, options)
-    .then((c) => {
-      client = c;
-      console.log("[MongoDB] Connected successfully");
-      return c;
-    })
-    .catch((err) => {
-      clientPromise = null;
-      console.error("[MongoDB] Connection failed:", err.message);
-      throw err;
-    });
-
-  return clientPromise;
-}
-
-/**
- * Extract database name from URI (fallback when MONGODB_DATABASES not configured)
- */
-function extractDbName(uri: string): string {
-  const match = uri.match(/\/([^/?]+)(\?|$)/);
-  return match ? match[1] : "oss-data-analyst";
-}
-
-/**
- * Get default database name
- * - If MONGODB_DATABASES is configured, returns first database
- * - Otherwise extracts from URI path
- */
-export function getDefaultDatabaseName(): string {
-  const configs = getDatabaseConfigs();
-  if (configs.length > 0) {
-    return configs[0].name;
-  }
-  return extractDbName(MONGODB_URI);
-}
-
-/**
- * Get database instance by name
- * @param dbName - Database name (required in multi-db mode)
- */
-export async function getDatabase(dbName?: string): Promise<ReturnType<MongoClient["db"]>> {
-  const client = await getMongoClient();
-
-  // Determine database name
-  const configs = getDatabaseConfigs();
-  let name: string;
-
-  if (dbName) {
-    // Validate if in multi-db mode
-    if (configs.length > 0) {
-      validateDatabase(dbName);
-    }
-    name = dbName;
-  } else if (configs.length > 0) {
-    // Multi-db mode but no name specified - use first
-    name = configs[0].name;
-    console.log(`[MongoDB] No database specified, using default: ${name}`);
-  } else {
-    // Single-db mode - extract from URI
-    name = extractDbName(MONGODB_URI);
-  }
-
-  return client.db(name);
-}
-
-/**
- * Get list of configured database names
- */
-export function getConfiguredDatabaseNames(): string[] {
-  const configs = getDatabaseConfigs();
-  if (configs.length > 0) {
-    return configs.map(c => c.name);
-  }
-  // Fallback: return URI database name
-  return [extractDbName(MONGODB_URI)];
-}
-
-/**
- * Query result format
- */
-export interface QueryResult {
-  rows: any[];
-  columns: string[];
-  rowCount: number;
-  executionTime: number;
-}
-
-/**
- * Execute a MongoDB find query
- */
-export async function executeFindQuery(params: {
-  database?: string;
+export type Query = {
+  database: string;
   collection: string;
-  filter?: Record<string, any>;
+  mode: "find" | "aggregate";
+  filter?: Document;
   projection?: Record<string, 0 | 1>;
   sort?: Record<string, 1 | -1>;
   limit?: number;
   skip?: number;
-}): Promise<QueryResult> {
-  const startTime = Date.now();
-  const dbInfo = params.database ? `${params.database}.${params.collection}` : params.collection;
-  console.log(`[MongoDB] Find on ${dbInfo}`);
+  pipeline?: Document[];
+};
 
-  try {
-    const db = await getDatabase(params.database);
-    const collection = db.collection(params.collection);
+export async function runQuery(q: Query): Promise<Document[]> {
+  const collections = DATABASES.get(q.database);
+  if (!collections) throw new QueryRejected(`Unknown database "${q.database}". Valid: ${[...DATABASES.keys()].join(", ")}`);
+  if (!collections.has(q.collection)) throw new QueryRejected(`Collection "${q.collection}" is not available in ${q.database}`);
+  assertSafeQuery({ filter: q.filter, projection: q.projection, sort: q.sort, pipeline: q.pipeline }, collections);
 
-    let cursor = collection.find(deserializeObjectIds(params.filter || {}));
-
-    if (params.projection) {
-      cursor = cursor.project(params.projection);
-    }
-    if (params.sort) {
-      cursor = cursor.sort(params.sort);
-    }
-    if (params.skip) {
-      cursor = cursor.skip(params.skip);
-    }
-    if (params.limit) {
-      cursor = cursor.limit(params.limit);
-    }
-
-    const rows = await cursor.toArray();
-    const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-    const executionTime = Date.now() - startTime;
-
-    console.log(`[MongoDB] Query completed in ${executionTime}ms, returned ${rows.length} docs`);
-
-    return {
-      rows,
-      columns,
-      rowCount: rows.length,
-      executionTime,
-    };
-  } catch (error: any) {
-    const executionTime = Date.now() - startTime;
-    console.error(`[MongoDB] Query failed after ${executionTime}ms:`, error.message);
-    throw new Error(`MongoDB Error: ${error.message}`);
+  const coll = (await getClient()).db(q.database).collection(q.collection);
+  if (q.mode === "aggregate") {
+    const pipeline = [...(deserialize(q.pipeline ?? []) as Document[]), { $limit: MAX_ROWS }];
+    return coll.aggregate(pipeline, { maxTimeMS: MAX_TIME_MS }).toArray();
   }
+  return coll
+    .find(deserialize(q.filter ?? {}) as Document, { maxTimeMS: MAX_TIME_MS })
+    .project(q.projection ?? {})
+    .sort(q.sort ?? {})
+    .skip(q.skip ?? 0)
+    .limit(Math.min(q.limit ?? 100, MAX_ROWS))
+    .toArray();
 }
 
-/**
- * Execute a MongoDB aggregation pipeline
- */
-export async function executeAggregation(params: {
-  database?: string;
-  collection: string;
-  pipeline: Record<string, any>[];
-}): Promise<QueryResult> {
-  const startTime = Date.now();
-  const dbInfo = params.database ? `${params.database}.${params.collection}` : params.collection;
-  console.log(`[MongoDB] Aggregation on ${dbInfo}`);
-
-  try {
-    const db = await getDatabase(params.database);
-    const collection = db.collection(params.collection);
-
-    const rows = await collection.aggregate(deserializeObjectIds(params.pipeline)).toArray();
-    const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-    const executionTime = Date.now() - startTime;
-
-    console.log(`[MongoDB] Aggregation completed in ${executionTime}ms, returned ${rows.length} docs`);
-
-    return {
-      rows,
-      columns,
-      rowCount: rows.length,
-      executionTime,
-    };
-  } catch (error: any) {
-    const executionTime = Date.now() - startTime;
-    console.error(`[MongoDB] Aggregation failed after ${executionTime}ms:`, error.message);
-    throw new Error(`MongoDB Error: ${error.message}`);
-  }
-}
-
-function getBsonType(value: any): string {
+function bsonType(value: unknown): string {
   if (value instanceof ObjectId) return "ObjectId";
   if (value instanceof Date) return "Date";
   if (typeof value === "number") return Number.isInteger(value) ? "int" : "double";
-  if (typeof value === "boolean") return "bool";
   if (Array.isArray(value)) return "array";
   if (value === null) return "null";
-  return typeof value; // string, object
+  return typeof value;
 }
 
-/**
- * Get collection schema information
- */
-export async function getSchema(dbName?: string): Promise<any[]> {
-  const db = await getDatabase(dbName);
-  const collections = await db.listCollections().toArray();
+let schemaPromise: Promise<string> | null = null;
 
-  const schemas = await Promise.all(
-    collections.map(async (col) => {
-      const sample = await db.collection(col.name).findOne();
-      const indexes = await db.collection(col.name).indexes();
-
-      return {
-        collection: col.name,
-        fields: sample
-          ? Object.entries(sample).map(([name, value]) => ({
-              name,
-              bsonType: getBsonType(value),
-            }))
-          : [],
-        indexes: indexes.map((idx) => ({ name: idx.name, keys: idx.key })),
-      };
-    })
-  );
-
-  return schemas;
-}
-
-/**
- * Test database connection
- */
-export async function testConnection(): Promise<boolean> {
-  try {
-    const client = await getMongoClient();
-    await client.db().admin().ping();
-    console.log("[MongoDB] Connection test successful");
-    return true;
-  } catch (error) {
-    console.error("[MongoDB] Connection test failed:", error);
-    return false;
-  }
-}
-
-/**
- * Close database connection
- */
-export async function closeDatabase(): Promise<void> {
-  if (client) {
-    console.log("[MongoDB] Closing connection");
-    await client.close();
-    client = null;
-    clientPromise = null;
-  }
-}
-
-/**
- * List all collections in the database
- */
-export async function listCollections(dbName?: string): Promise<string[]> {
-  const db = await getDatabase(dbName);
-  const collections = await db.listCollections().toArray();
-  return collections.map((c) => c.name);
+/** Top-level field names/types sampled from one document per allowed collection (PII fields omitted). Cached per instance. */
+export function getSchemaSummary(): Promise<string> {
+  schemaPromise ??= (async () => {
+    const client = await getClient();
+    const blocks = await Promise.all(
+      [...DATABASES].flatMap(([db, colls]) =>
+        [...colls].map(async (name) => {
+          const sample = await client.db(db).collection(name).findOne({}, { maxTimeMS: MAX_TIME_MS });
+          const fields = Object.entries(sample ?? {})
+            .filter(([k]) => !PII_FIELDS.has(k))
+            .map(([k, v]) => `  ${k}: ${bsonType(v)}${v instanceof ObjectId ? "  <- use plain 24-hex string in filters" : ""}`);
+          return `[${db}] Collection: ${name}\n${fields.join("\n")}`;
+        })
+      )
+    );
+    return blocks.join("\n\n");
+  })().catch((err) => {
+    schemaPromise = null;
+    throw err;
+  });
+  return schemaPromise;
 }

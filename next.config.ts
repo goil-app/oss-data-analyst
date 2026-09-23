@@ -1,38 +1,10 @@
-import { headers } from "next/headers";
+import type { NextConfig } from "next";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-  webpack: (config: any, { isServer }: { isServer: boolean }) => {
-    if (isServer) {
-      // Include font files in the server bundle
-      config.module.rules.push({
-        test: /\.(ttf|ttc|otf|woff|woff2)$/,
-        type: "asset/resource",
-        generator: {
-          filename: "static/fonts/[name][ext]",
-        },
-      });
-
-      // Handle native .node files from resvg-js
-      config.module.rules.push({
-        test: /\.node$/,
-        loader: "node-loader",
-      });
-
-      // Externalize native modules
-      config.externals = config.externals || [];
-      config.externals.push({
-        "@resvg/resvg-js": "@resvg/resvg-js",
-      });
-    }
-    return config;
-  },
+const nextConfig: NextConfig = {
+  // Read at runtime with fs (allowlist + sandbox upload), so they must be traced into the functions.
+  outputFileTracingIncludes: { "/api/**": ["./src/semantic/**/*"] },
+  // just-bash loads WASM + workers from its package dir; discord.js has optional native deps (zlib-sync).
+  serverExternalPackages: ["just-bash", "bash-tool", "discord.js", "@chat-adapter/discord"],
 };
 
 export default nextConfig;

@@ -2,14 +2,17 @@ name: Alert
 type: fact_table
 database: AlertDB
 table: AlertDB.Alert
-grain: one row per emergency alert
-description: Core emergency alert records including creator, type, state, status, region, and resolution time
+grain: one row per alert raised from the app
+description: >-
+  Core alert records: who raised it, alert type, current workflow state, business, region, city and resolution time.
+  "Botó de pànic" / panic button alerts = alerts whose AlertType.trackingType is 1, 2, 3 or 4 (see AlertType):
+  other trackingTypes are app sections (calendar, chat, documents...) that also create Alert records.
 common_questions:
   - How many alerts were created this month?
-  - What is the average alert resolution time by type?
+  - How many alerts per alert type (with the type name)?
   - How many alerts are open vs closed?
-  - Show alert volume by region
-  - What is the alert status distribution?
+  - Show alert volume by city or region
+  - What is the average time an alert stays open?
 
 dimensions:
   - name: _id
@@ -30,42 +33,74 @@ dimensions:
   - name: userId
     sql: userId
     type: string
-    description: Account that created the alert (ObjectId)
+    description: Account that created the alert (ObjectId ref to AccountDB.Account._id)
 
   - name: userType
     sql: userType
     type: string
-    description: Type of the user who created the alert
+    description: Account type of the user who created the alert (ObjectId ref to AccountDB.AccountType._id)
 
   - name: state
     sql: state
     type: string
-    description: Current alert state (e.g. pending, active, resolved)
+    description: >-
+      Current workflow state (ObjectId). It is NOT an AlertState id: it matches an element of Workflow.states._id.
+      Use the Workflow join to get the state name and whether it is a closed state (isClosedState).
 
   - name: alertType
     sql: alertType
     type: string
-    description: Alert type identifier (ObjectId ref to AlertType._id)
+    description: Alert type (ObjectId ref to AlertType._id). Resolve the readable name via AlertType.name -> Translation.
 
   - name: status
     sql: status
-    type: string
-    description: Alert status (e.g. open, closed)
+    type: number
+    description: >-
+      Verification status set by operators: 1 = UNVERIFIED (default on creation), 2 = FAKE (false alarm), 3 = REAL.
+      It is NOT open/closed: use state + Workflow.states.isClosedState for that.
 
   - name: businessId
     sql: businessId
     type: string
-    description: Associated business identifier (ObjectId)
+    description: Business (tenant) that owns the alert (ObjectId ref to ClientDB.Business._id, different database: query it separately)
 
   - name: region
     sql: region
     type: string
-    description: Geographic region of the alert
+    description: Region identifier (ObjectId)
+
+  - name: location.city
+    sql: location.city
+    type: string
+    description: City where the alert was raised
+
+  - name: location.postalCode
+    sql: location.postalCode
+    type: string
+    description: Postal code where the alert was raised
+
+  - name: location.country
+    sql: location.country
+    type: string
+    description: Country code (e.g. ES)
 
   - name: timeOpen
     sql: timeOpen
     type: number
-    description: Time the alert was open in seconds/milliseconds
+    description: >-
+      Seconds from creation until the alert reached a closed workflow state (isClosedState). Only set on closed alerts;
+      always say how many alerts the average is based on.
+
+  - name: metadata.account.accountType
+    sql: metadata.account.accountType
+    type: string
+    description: Snapshot of the creator's account type at alert time (the rest of metadata.account is personal data)
+
+notes:
+  - Personal data (not queryable, redacted): location.latitude, location.longitude, location.street, additional.street, metadata.account.username, metadata.account.phone, metadata.account.attributesValue.
+  - Panic button filter: { $lookup: { from: "AlertType", localField: "alertType", foreignField: "_id", as: "t" } }, { $unwind: "$t" }, { $match: { "t.trackingType": { $in: [1, 2, 3, 4] } } }.
+  - Alerts per business: businessId refers to ClientDB.Business (other database). Group by businessId here, then query ClientDB.Business with { _id: { $in: [...] } } to get the names.
+  - Many alert types are tests or deleted (names like "Prueba", "QA", AlertType.deleted = true). When relevant, split or mention test/deleted types instead of mixing them silently with real usage.
 
 joins:
   - name: AlertType
@@ -74,7 +109,24 @@ joins:
     type: many_to_one
     local_field: alertType
     foreign_field: _id
-    note: Both alertType and AlertType._id are ObjectId.
+
+  - name: Workflow
+    database: AlertDB
+    collection: Workflow
+    type: many_to_one
+    note: >-
+      The state lives inside Workflow.states[]. Example: { $lookup: { from: "Workflow", localField: "state", foreignField: "states._id", as: "wf" } },
+      then { $unwind: "$wf" }, { $unwind: "$wf.states" }, { $match: { $expr: { $eq: ["$wf.states._id", "$state"] } } }.
+      wf.states.isClosedState == true means closed; wf.states.name is a Translation id.
+
+examples:
+  - question: Alerts per type with readable name
+    pipeline: >-
+      [{ "$group": { "_id": "$alertType", "count": { "$sum": 1 } } },
+       { "$lookup": { "from": "AlertType", "localField": "_id", "foreignField": "_id", "as": "t" } }, { "$unwind": "$t" },
+       { "$lookup": { "from": "Translation", "localField": "t.name", "foreignField": "_id", "as": "tr" } },
+       { "$project": { "count": 1, "deleted": "$t.deleted", "name": { "$ifNull": [{ "$first": "$tr.ca" }, { "$first": "$tr.default" }] } } },
+       { "$sort": { "count": -1 } }]
 
 measures:
   - name: count
@@ -82,14 +134,7 @@ measures:
     type: count_distinct
     description: Total number of alerts
 
-  - name: open_count
-    sql: _id
-    type: count_distinct
-    description: Number of currently open alerts
-    filters:
-      - sql: "status = 'open'"
-
   - name: avg_time_open
     sql: timeOpen
     type: avg
-    description: Average time alerts remain open
+    description: Average time alerts remain open (only alerts with timeOpen set)

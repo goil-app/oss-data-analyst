@@ -1,0 +1,47 @@
+name: Workflow
+type: dimension_table
+database: AlertDB
+table: AlertDB.Workflow
+grain: one row per alert workflow (the list of states an alert goes through)
+description: >-
+  Alert workflows. Each workflow has an embedded states[] array; Alert.state points to one of those states.
+  Use it to know the state name and whether an alert is open or closed.
+common_questions:
+  - How many alerts are open vs closed?
+  - How many alerts are in each state?
+
+dimensions:
+  - name: _id
+    sql: _id
+    type: string
+    description: Workflow identifier (ObjectId)
+
+  - name: name
+    sql: name
+    type: string
+    description: Workflow name (ObjectId ref to AlertDB.Translation._id)
+
+  - name: states._id
+    sql: states._id
+    type: string
+    description: State identifier (ObjectId), matched by Alert.state
+
+  - name: states.name
+    sql: states.name
+    type: string
+    description: State name (ObjectId ref to AlertDB.Translation._id)
+
+  - name: states.index
+    sql: states.index
+    type: number
+    description: Position of the state in the workflow (0 = first)
+
+  - name: states.isClosedState
+    sql: states.isClosedState
+    type: boolean
+    description: true when the state means the alert is closed/resolved (null or false = still open)
+
+  - name: businessId
+    sql: businessId
+    type: string
+    description: Business (tenant) identifier (ObjectId)
