@@ -15,7 +15,7 @@ export const DATABASES = new Map(
 );
 
 const MAX_TIME_MS = 30_000;
-const MAX_ROWS = 1000;
+export const MAX_ROWS = 1000;
 const WRITE_ACTIONS = new Set([
   "insert", "update", "remove", "createCollection", "dropCollection", "dropDatabase",
   "createIndex", "dropIndex", "renameCollectionSameDB", "collMod", "bypassDocumentValidation",
@@ -87,7 +87,8 @@ export async function runQuery(q: Query): Promise<Document[]> {
 
   const coll = (await getClient()).db(q.database).collection(q.collection);
   if (q.mode === "aggregate") {
-    const pipeline = [...(deserialize(q.pipeline ?? []) as Document[]), { $limit: MAX_ROWS }];
+    // One extra row lets the caller tell the result was capped
+    const pipeline = [...(deserialize(q.pipeline ?? []) as Document[]), { $limit: MAX_ROWS + 1 }];
     return coll.aggregate(pipeline, { maxTimeMS: MAX_TIME_MS }).toArray();
   }
   return coll
@@ -95,7 +96,7 @@ export async function runQuery(q: Query): Promise<Document[]> {
     .project(q.projection ?? {})
     .sort(q.sort ?? {})
     .skip(q.skip ?? 0)
-    .limit(Math.min(q.limit ?? 100, MAX_ROWS))
+    .limit(Math.min(q.limit ?? 100, MAX_ROWS + 1))
     .toArray();
 }
 

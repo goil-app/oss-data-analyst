@@ -2,15 +2,18 @@ import { generateText, hasToolCall, isStepCount, tool, type ModelMessage } from 
 import { createBashTool } from "bash-tool";
 import { Bash } from "just-bash";
 import { z } from "zod";
-import { getSchemaSummary } from "./mongodb";
-import { createExecuteMongoDBTool, type Rows } from "./tools/execute-mongodb";
+import { readFileSync } from "fs";
+import path from "path";
+import { getSchemaSummary, SEMANTIC_DIR } from "./mongodb";
+import { createExecuteMongoDBTool, PREVIEW_ROWS, type Rows } from "./tools/execute-mongodb";
+import { createExecutePostHogTool, isPostHogConfigured } from "./tools/execute-posthog";
 
 export const MODEL = process.env.MODEL ?? "anthropic/claude-sonnet-5";
 
 const FinalizeReport = tool({
-  description: "Finalize the answer with the MongoDB query that produced it and the narrative for the user.",
+  description: "Finalize the answer with the query that produced it (MongoDB or HogQL) and the narrative for the user.",
   inputSchema: z.object({
-    query: z.string().describe("The final MongoDB query (or attempted query) as a JSON string"),
+    query: z.string().describe("The final MongoDB query (JSON string) or HogQL query that was executed or attempted"),
     narrative: z.string().min(1).describe("The answer shown to the user"),
   }),
   execute: async (input) => input,
@@ -23,19 +26,31 @@ This system has multiple MongoDB databases. ALWAYS check \`semantic/databases.ym
 - Each database has specific collections - you MUST specify the correct database in ExecuteMongoDB
 - Only the databases and collections listed there can be queried
 
-## Filesystem Structure
-- semantic/databases.yml - Database catalog with available databases and their collections (READ THIS FIRST)
-- semantic/catalog.yml - Entity catalog with descriptions, example questions, and field lists
+${isPostHogConfigured() ? `## PostHog (product usage analytics)
+Questions about how the backoffice web app or its help center are USED (page visits, active users per business, most used modules, help center opens, chat questions, docs viewed, errors users hit) are answered with ExecutePostHog (HogQL), NOT MongoDB.
+- Read \`semantic/posthog.yml\` first: events, properties, and how to join with MongoDB ids
+- MongoDB = business data (accounts, alerts, notifications...). PostHog = behaviour inside the backoffice/help center
+- You can combine both: e.g. get business ids from PostHog, then names from ClientDB.Business
+
+` : ""}## Filesystem Structure
+- semantic/databases.yml - Database catalog with available databases and their collections (included below)
+- semantic/catalog.yml - Entity catalog with descriptions, example questions, and field lists (included below)
 - semantic/entities/*.yml - Detailed entity definitions with field paths, lookups, and field metadata
+- semantic/posthog.yml - PostHog events and properties (backoffice + help center usage)
+- /tmp/mongo_schema.txt - Sampled field types per collection (grep it, e.g. \`grep -A30 "Collection: Account$" /tmp/mongo_schema.txt\`)
+
+## Query Results
+ExecuteMongoDB and ExecutePostHog return rowCount and only the first ${PREVIEW_ROWS} rows (plus a warning if the result was capped).
+The full result of the LATEST query is always in /tmp/mongodb_result.json and /tmp/mongodb_result.csv: use python3, jq or xan on those files for totals, rankings or any analysis over all rows instead of reasoning over the preview.
 
 ## Workflow
 
 ### 1. Schema Exploration
-Use the bash tool to find relevant entities and fields:
-- \`cat semantic/databases.yml\` - See available databases and their collections (START HERE)
-- \`cat semantic/catalog.yml\` - Browse all entities
-- \`grep -r "keyword" semantic/\` - Search for terms
+databases.yml and catalog.yml are already included at the end of these instructions: do NOT cat them again.
+Use the bash tool only for details:
 - \`cat semantic/entities/<name>.yml\` - Get entity details (field paths, lookups)
+- \`grep -r "keyword" semantic/\` - Search for terms
+- Read several files in ONE command (e.g. \`cat semantic/entities/Account.yml semantic/entities/AccountType.yml\`)
 
 For analysis of query results the sandbox has jq (JSON), xan (CSV), sqlite3 and python3 (standard library only, no pandas/numpy).
 
@@ -47,6 +62,7 @@ Construct MongoDB queries using collection names from entity definitions:
 - ALWAYS include the correct "database" parameter
 
 ### 3. Execution
+When you need several independent queries, call them in parallel in the same step.
 Call ExecuteMongoDB with your query. If error:
 - Analyze the error message carefully
 - Fix the query to address the specific issue (wrong field name, syntax error, etc.)
@@ -63,7 +79,7 @@ Call FinalizeReport with:
 Personal data fields (phone numbers, usernames, GPS coordinates, auth codes, wallet numbers) cannot be queried and are redacted in results. Never try to work around this; if a question needs personal data, say it is not available.
 
 ## Guidelines
-- Always check databases.yml first to find the correct database
+- Always pick the database from databases.yml (below)
 - Always explore schema before writing queries - never guess field names
 - Use only fields from entity YAML files
 - Lead with the direct answer, then context
@@ -82,7 +98,13 @@ Personal data fields (phone numbers, usernames, GPS coordinates, auth codes, wal
   - Examples: 1.234.567 | 3,14 | 99,5%
 - Always include % symbol for percentages
 - Round decimals to 1-2 places maximum
-`;
+
+## semantic/databases.yml
+${readFileSync(path.join(SEMANTIC_DIR, "databases.yml"), "utf8")}
+## semantic/catalog.yml
+${readFileSync(path.join(SEMANTIC_DIR, "catalog.yml"), "utf8")}`;
+
+const MAX_STEPS = 40;
 
 function toCsv(rows: Rows): string {
   const columns = [...new Set(rows.flatMap((r) => Object.keys(r)))];
@@ -105,22 +127,43 @@ export async function runAgent(messages: ModelMessage[], abortSignal?: AbortSign
     uploadDirectory: { source: "src", include: "semantic/**" },
   });
 
-  const ExecuteMongoDB = createExecuteMongoDBTool(async (rows) => {
+  // Written on every query (empty on errors) so the files never hold a previous query's data
+  const writeRows = async (rows: Rows) => {
     await sandbox.writeFile("/tmp/mongodb_result.json", JSON.stringify(rows, null, 2));
     await sandbox.writeFile("/tmp/mongodb_result.csv", toCsv(rows));
-  });
+  };
 
+  // In a file, not the prompt: the agent greps what it needs and the prompt prefix stays cacheable
   const schema = await getSchemaSummary().catch((err) => {
     console.warn("[Agent] Schema sampling failed:", err);
     return "";
   });
+  await sandbox.writeFile("/tmp/mongo_schema.txt", schema);
+
+  const tools = {
+    bash: bashTools.bash,
+    ExecuteMongoDB: createExecuteMongoDBTool(writeRows),
+    ExecutePostHog: createExecutePostHogTool(writeRows),
+    FinalizeReport,
+  };
 
   const result = await generateText({
     model: MODEL,
-    instructions: `${INSTRUCTIONS}\n- Today is ${new Date().toISOString().split("T")[0]}\n${schema && `\n## Database Schema (sampled)\n${schema}\n`}`,
+    // Static instructions first (cache-friendly prefix), the date after them
+    instructions: [
+      { role: "system", content: INSTRUCTIONS },
+      { role: "system", content: `Today is ${new Date().toISOString().split("T")[0]}` },
+    ],
     messages,
-    tools: { bash: bashTools.bash, ExecuteMongoDB, FinalizeReport },
-    stopWhen: [hasToolCall("FinalizeReport"), isStepCount(40)],
+    tools,
+    activeTools: isPostHogConfigured()
+      ? ["bash", "ExecuteMongoDB", "ExecutePostHog", "FinalizeReport"]
+      : ["bash", "ExecuteMongoDB", "FinalizeReport"],
+    // Near the step budget, force a report instead of a silent cutoff
+    prepareStep: ({ stepNumber }) =>
+      stepNumber >= MAX_STEPS - 3 ? { activeTools: ["FinalizeReport"], toolChoice: { type: "tool", toolName: "FinalizeReport" } } : {},
+    stopWhen: [hasToolCall("FinalizeReport"), isStepCount(MAX_STEPS)],
+    providerOptions: { gateway: { caching: "auto" } },
     abortSignal,
     telemetry: { functionId: "data-analyst-agent" },
   });
@@ -129,8 +172,8 @@ export async function runAgent(messages: ModelMessage[], abortSignal?: AbortSign
     .flatMap((s) => s.toolResults)
     .find((t) => t.toolName === "FinalizeReport")?.output as { narrative: string; query: string } | undefined;
 
-  const { inputTokens, outputTokens } = result.totalUsage;
-  console.log(`[Agent] ${result.steps.length} steps, input ${inputTokens}, output ${outputTokens}, query: ${report?.query ?? "-"}`);
+  const { inputTokens, outputTokens, inputTokenDetails } = result.totalUsage;
+  console.log(`[Agent] ${result.steps.length} steps, input ${inputTokens} (cached ${inputTokenDetails?.cacheReadTokens ?? 0}), output ${outputTokens}, query: ${report?.query ?? "-"}`);
 
   return report?.narrative ?? (result.text || "Ho sento, no he pogut generar una resposta.");
 }

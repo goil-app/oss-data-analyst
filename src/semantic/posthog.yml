@@ -1,0 +1,91 @@
+# PostHog product analytics (query with ExecutePostHog, HogQL = ClickHouse-like SQL)
+# Project "backoffice" (EU). Timezone Europe/Madrid.
+# Source: the Goil backoffice web app (<subdomain>.community.goil.app) and its embedded help center widget.
+
+tables:
+  events:
+    description: One row per tracked event
+    columns:
+      event: Event name (see events below)
+      timestamp: Event time (always filter on it, e.g. timestamp > now() - INTERVAL 30 DAY)
+      distinct_id: Backoffice user id (24-hex, the logged-in admin account id)
+      person_id: PostHog person UUID (use for unique users: uniq(person_id))
+      properties.<name>: Event property, e.g. properties.$pathname
+      person.properties.<name>: Person property at event time, e.g. person.properties.business_id
+  persons:
+    description: One row per user. properties.business_id, properties.plan_code, properties.is_free_plan
+
+person_properties:
+  business_id: Business (tenant) id. Same value as ClientDB.Business._id in MongoDB
+  business_category: Business category
+  plan_code: Subscription plan code (e.g. unrestricted)
+  is_free_plan: Boolean
+
+common_event_properties:
+  # In HogQL always write them as properties.<name> (e.g. properties.$host), never bare $host
+  properties.$host: Tenant backoffice host, "<Business.subdomain>.community.goil.app"
+  properties.$pathname: Backoffice page path = module. Replace ids with replaceRegexpAll(properties.$pathname, '[0-9a-f]{24}', ':id')
+  properties.$current_url: Full URL
+  properties.$browser, properties.$os, properties.$device_type: Client info
+  properties.help_session_id: Groups all help center events of one help widget session
+
+backoffice_modules_by_path:
+  /time-tracking: Control horario (time tracking)
+  /booking: Reservas (bookings)
+  /account/validation: Account validation queue
+  /account/external, /account/internal, /account/broadcast: Users (external app users, internal staff, broadcast)
+  /account-types/*: Account types
+  /alerts: Alertas
+  /notifications/sent, /notifications/scheduled, /notifications/templates: Notifications
+  /events/next, /events/past, /events/tags: Events (agenda)
+  /sections: App sections
+  /composer/web: Composer (web page builder)
+  /branding/banners, /look-and-feel: App customization
+  /channels: Channels
+  /wallets: Wallets / carnets
+  /analytics: Statistics
+  /assistant/dashboard: AI assistant
+  /workflows/list: Automations
+  /settings: Settings
+  /welcome: Home
+
+events:
+  # Backoffice
+  $pageview: Page loaded in the backoffice. Main usage metric (visits per module / business)
+  $pageleave: Page left
+  $autocapture: Automatic click/input capture (high volume, use only for click analysis)
+  $rageclick: User clicked repeatedly in frustration
+  $exception: Frontend error
+  plan:module_locked_click: User clicked a module not included in their plan. props moduleCode, category
+  onboarding_started: Onboarding flow started. props flowKey, segment, app, blockType, order
+  onboarding_block_viewed: Onboarding block viewed. Same props as onboarding_started
+  signup_auth_code_requested: Signup, code requested. props app, resend
+  signup_auth_code_verified: Signup, code verified. props app, isNewClient
+  signup_auth_completed: Signup completed. props method, isNewClient, app
+  signup_prefill_completed: Signup prefill done. props mode, hasBrandData, app
+
+  # Help center (embedded widget, all events share help_session_id)
+  help:opened: Help center opened. props source (banner | error_bubble), route (page where opened), error_count
+  help:closed: Help center closed. props duration_ms
+  help:view_changed: Tab change. props from, to (home | chat | articles)
+  help:category_opened: Docs category opened. props category_id, article_count
+  help:doc_viewed: Help article viewed. props slug, source (banner | browse | citation | home_suggestion | in_doc_link)
+  help:search_performed: Docs search. props query, query_length, result_count, has_results
+  help:chat_message_sent: User asked the AI help assistant. props text (the question), word_count, source (chat_input | home | doc), has_page_context, has_error_context
+  help:chat_response_completed: AI assistant answered. props status (done | error), latency_ms, citation_count, had_tool_calls
+  help:agent_doc_fetched: AI assistant read a help doc to answer. props slug, title
+  help:resolution_answered: "Did this solve your problem?" answered. props resolved (bool), context (chat | doc), slug, message_id
+  help:auto_diagnosis_triggered: Automatic error diagnosis launched. props error_count
+  help:error_detected: Backoffice API error seen by the help widget. props kind (action | background), status (HTTP), method, url_path
+  help:chat_cleared: Chat history cleared. props message_count
+
+tips:
+  - Always filter by timestamp and add LIMIT (<= 1000). Default to last 30 days if no period is given
+  - Unique users uniq(person_id); unique businesses uniq(person.properties.business_id)
+  - Per-business usage GROUP BY person.properties.business_id, then look up names in MongoDB ClientDB.Business by _id
+  - Or GROUP BY properties.$host, the subdomain matches ClientDB.Business.subdomain
+  - Help center resolution rate countIf(properties.resolved = true) / count() on help:resolution_answered
+  - Test/internal users are NOT filtered automatically in HogQL; exclude goil.connect-lb.goil.dev and *.goil.dev hosts for customer-only numbers
+  - Examples
+      - "SELECT replaceRegexpAll(properties.$pathname, '[0-9a-f]{24}', ':id') AS page, count() AS views, uniq(person_id) AS users FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 30 DAY GROUP BY page ORDER BY views DESC LIMIT 20"
+      - "SELECT properties.text AS question, timestamp FROM events WHERE event = 'help:chat_message_sent' AND timestamp > now() - INTERVAL 30 DAY ORDER BY timestamp DESC LIMIT 50"

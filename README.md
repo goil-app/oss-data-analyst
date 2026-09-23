@@ -1,6 +1,6 @@
 # OSS Data Analyst
 
-Discord bot that answers natural-language questions about Goil data. An AI agent explores a semantic layer (YAML), builds read-only MongoDB queries and explains the results in plain language. Forked from [vercel-labs/oss-data-analyst](https://github.com/vercel-labs/oss-data-analyst).
+Discord bot that answers natural-language questions about Goil data. An AI agent explores a semantic layer (YAML), builds read-only MongoDB queries (business data) and HogQL queries against PostHog (backoffice and help center usage) and explains the results in plain language. Forked from [vercel-labs/oss-data-analyst](https://github.com/vercel-labs/oss-data-analyst).
 
 ## How it works
 
@@ -8,11 +8,14 @@ Discord bot that answers natural-language questions about Goil data. An AI agent
 Discord /ask message:<question>
   → /api/webhooks/discord (HTTP Interactions, Chat SDK)
   → agent (AI SDK 7, anthropic/claude-sonnet-5 via AI Gateway)
-      bash           just-bash, in-process: semantic/ YAML + /tmp/mongodb_result.{json,csv}
-                     (jq, xan, sqlite3, python3 stdlib; no network)
+      bash           just-bash, in-process: semantic/ YAML, /tmp/mongo_schema.txt,
+                     /tmp/mongodb_result.{json,csv} (jq, xan, sqlite3, python3 stdlib; no network)
       ExecuteMongoDB read-only queries, guarded (see below)
+      ExecutePostHog HogQL on PostHog, only if POSTHOG_API_KEY is set (query:read key)
       FinalizeReport narrative posted back to the channel
 ```
+
+Query tools return the row count and a 50-row preview to the model; the full result (max 1000 rows) goes to the sandbox files for analysis. Instructions are static (date in a separate block) with AI Gateway automatic prompt caching, so each step only pays for new tokens.
 
 Each `/ask` is independent (no conversation memory). Mentions would need the Discord Gateway (a permanently running listener), deliberately left out.
 
@@ -34,7 +37,7 @@ Each `/ask` is independent (no conversation memory). Mentions would need the Dis
 
 ```bash
 pnpm ask "Quants comptes estan validats?"   # run the agent locally against MongoDB
-pnpm test                                   # unit tests (query guard)
+pnpm test                                   # unit tests (query guard, result preview)
 pnpm eval                                   # evalite evals (real MongoDB + model)
 pnpm lint && pnpm type-check && pnpm build
 ```
