@@ -66,3 +66,17 @@ databases:
       - Wallet
       - WalletHistory
       - WalletType
+
+  - name: ProjectsDB
+    description: AI-generated projects (websites, stores, app modules) built per business with the AI project builder, their chat turns and templates
+    collections:
+      - Projects
+      - ProjectConversations
+      - ProjectChats
+      - Templates
+
+  - name: IntegrationDB
+    description: AI usage ledger (tokens and cost per AI call, per business/project) and the AI model catalog with prices
+    collections:
+      - AIUsageEvents
+      - AIModels

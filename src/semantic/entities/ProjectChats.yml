@@ -1,0 +1,25 @@
+name: ProjectChats
+type: fact_table
+database: ProjectsDB
+table: ProjectsDB.ProjectChats
+grain: one row per chat message (user prompt or assistant turn) in the project builder
+description: Messages exchanged with the AI project builder. Assistant rows carry the model, tokens and cost of that turn.
+
+dimensions:
+  - {name: projectId, sql: projectId, type: string, description: "ObjectId -> Projects._id"}
+  - {name: conversationId, sql: conversationId, type: string, description: "ObjectId -> ProjectConversations._id"}
+  - {name: role, sql: role, type: string, description: "user | assistant"}
+  - {name: content, sql: content, type: string, description: "Message text (the user's request on role user). Never $project it for many rows: long"}
+  - {name: version, sql: version, type: number, description: Project version this turn produced}
+  - {name: stoppedByUser, sql: stoppedByUser, type: boolean, description: Turn stopped by the user}
+  - {name: usage.model, sql: usage.model, type: string, description: Model id (assistant rows)}
+  - {name: usage.provider, sql: usage.provider, type: string, description: Provider}
+
+time_dimensions:
+  - {name: createdAt, sql: createdAt, type: time, description: Message time}
+
+measures:
+  - {name: usage.cost, sql: usage.cost, type: sum, description: Turn cost in USD}
+  - {name: usage.inputTokens, sql: usage.inputTokens, type: sum, description: Input tokens (includes cache)}
+  - {name: usage.outputTokens, sql: usage.outputTokens, type: sum, description: Output tokens}
+  - {name: usage.cacheReadTokens, sql: usage.cacheReadTokens, type: sum, description: Cached input tokens read}

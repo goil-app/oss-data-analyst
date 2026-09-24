@@ -1,0 +1,17 @@
+name: ProjectConversations
+type: dimension_table
+database: ProjectsDB
+table: ProjectsDB.ProjectConversations
+grain: one row per builder conversation (a project can have several)
+description: Chat conversation with the AI project builder inside a project.
+
+dimensions:
+  - {name: _id, sql: _id, type: string, description: Conversation id (ProjectChats.conversationId). Not sent to Langfuse}
+  - {name: projectId, sql: projectId, type: string, description: "ObjectId -> Projects._id"}
+  - {name: title, sql: title, type: string, description: AI-generated conversation title}
+  - {name: status, sql: status, type: string, description: active | ...}
+  - {name: lastVersionNumber, sql: lastVersionNumber, type: number, description: Last project version produced in this conversation}
+
+time_dimensions:
+  - {name: createdAt, sql: createdAt, type: time, description: Start}
+  - {name: updatedAt, sql: updatedAt, type: time, description: Last message}

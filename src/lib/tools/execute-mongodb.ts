@@ -59,12 +59,12 @@ Returns counts and the first ${PREVIEW_ROWS} rows. The full result (max ${MAX_RO
       database: z.string().min(1),
       collection: z.string().min(1),
       mode: z.enum(["find", "aggregate"]).default("find"),
-      filter: z.record(z.string(), z.any()).optional(),
-      projection: z.record(z.string(), z.union([z.literal(0), z.literal(1)])).optional(),
-      sort: z.record(z.string(), z.union([z.literal(1), z.literal(-1)])).optional(),
+      filter: z.object({}).catchall(z.any()).optional(),
+      projection: z.object({}).catchall(z.union([z.literal(0), z.literal(1)])).optional(),
+      sort: z.object({}).catchall(z.union([z.literal(1), z.literal(-1)])).optional(),
       limit: z.number().int().positive().max(1000).optional(),
       skip: z.number().int().nonnegative().optional(),
-      pipeline: z.array(z.record(z.string(), z.any())).optional(),
+      pipeline: z.array(z.object({}).catchall(z.any())).optional(),
     }),
     execute: async (input): Promise<QueryOutput> => {
       const start = Date.now();

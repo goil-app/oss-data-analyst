@@ -1,0 +1,13 @@
+name: Templates
+type: dimension_table
+database: ProjectsDB
+table: ProjectsDB.Templates
+grain: one row per project template
+description: Starting templates for AI projects (Projects.templateId).
+
+dimensions:
+  - {name: _id, sql: _id, type: string, description: Template id}
+  - {name: slug, sql: slug, type: string, description: "e.g. webapp"}
+  - {name: displayName, sql: displayName, type: string, description: Template name (plain text)}
+  - {name: kind, sql: kind, type: string, description: "website | store | module"}
+  - {name: visibility, sql: visibility, type: string, description: public | ...}

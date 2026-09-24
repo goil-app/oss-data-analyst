@@ -41,7 +41,9 @@ bot.onSlashCommand("/ask", async (event) => {
   }
 
   try {
-    const answer = await runAgent([{ role: "user", content: event.text }]);
+    const answer = await runAgent([{ role: "user", content: event.text }], {
+      trace: { userId: event.user.userName || event.user.userId, sessionId: event.channel.id, tags: ["discord", `guild:${guildId}`] },
+    });
     for (const part of chunks(`> ${event.text}\n\n${answer}`)) await event.channel.post(part);
   } catch (error) {
     console.error("[Bot] /ask failed:", error);

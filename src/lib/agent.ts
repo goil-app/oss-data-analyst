@@ -7,14 +7,16 @@ import path from "path";
 import { getSchemaSummary, SEMANTIC_DIR } from "./mongodb";
 import { createExecuteMongoDBTool, PREVIEW_ROWS, type Rows } from "./tools/execute-mongodb";
 import { createExecutePostHogTool, isPostHogConfigured } from "./tools/execute-posthog";
+import { createExecuteLangfuseTool, isLangfuseConfigured } from "./tools/execute-langfuse";
+import type { TraceContext } from "./telemetry";
 
 // Picked by benchmark (2026-09): same accuracy as claude-sonnet-5 on our questions at ~10x lower cost
 export const MODEL = process.env.MODEL ?? "openai/gpt-5.6-luna";
 
 const FinalizeReport = tool({
-  description: "Finalize the answer with the query that produced it (MongoDB or HogQL) and the narrative for the user.",
+  description: "Finalize the answer with the query that produced it (MongoDB, HogQL or Langfuse) and the narrative for the user.",
   inputSchema: z.object({
-    query: z.string().describe("The final MongoDB query (JSON string) or HogQL query that was executed or attempted"),
+    query: z.string().describe("The final MongoDB query (JSON string), HogQL query or Langfuse params that was executed or attempted"),
     narrative: z.string().min(1).describe("The answer shown to the user"),
   }),
   execute: async (input) => input,
@@ -33,15 +35,22 @@ Questions about how the backoffice web app or its help center are USED (page vis
 - MongoDB = business data (accounts, alerts, notifications...). PostHog = behaviour inside the backoffice/help center
 - You can combine both: e.g. get business ids from PostHog, then names from ClientDB.Business
 
+` : ""}${isLangfuseConfigured() ? `## Langfuse (backend AI observability)
+Questions about the backend's AI features (AI project/store builder, help center assistant, smart notifications, smart translations): number of AI calls, cost, tokens, latency, errors, models, user feedback scores. Use ExecuteLangfuse.
+- Read \`semantic/langfuse.yml\` first: trace names, ids, Metrics API query format and examples
+- AI cost per business/project: MongoDB IntegrationDB.AIUsageEvents is the ledger (has businessId/projectId). Langfuse covers everything, including notifications and translations, but can't group by business
+- Cross sources by id: Langfuse userId/sessionId = businessId/projectId on builder traces; traceId in AIUsageEvents and SmartNotificationFeedback
+
 ` : ""}## Filesystem Structure
 - semantic/databases.yml - Database catalog with available databases and their collections (included below)
 - semantic/catalog.yml - Entity catalog with descriptions, example questions, and field lists (included below)
 - semantic/entities/*.yml - Detailed entity definitions with field paths, lookups, and field metadata
 - semantic/posthog.yml - PostHog events and properties (backoffice + help center usage)
+- semantic/langfuse.yml - Langfuse traces, scores and Metrics API (backend AI features)
 - /tmp/mongo_schema.txt - Sampled field types per collection (grep it, e.g. \`grep -A30 "Collection: Account$" /tmp/mongo_schema.txt\`)
 
 ## Query Results
-ExecuteMongoDB and ExecutePostHog return rowCount and only the first ${PREVIEW_ROWS} rows (plus a warning if the result was capped).
+ExecuteMongoDB, ExecutePostHog and ExecuteLangfuse return rowCount and only the first ${PREVIEW_ROWS} rows (plus a warning if the result was capped).
 The full result of the LATEST query is always in /tmp/mongodb_result.json and /tmp/mongodb_result.csv: use python3, jq or xan on those files for totals, rankings or any analysis over all rows instead of reasoning over the preview.
 
 ## Workflow
@@ -118,7 +127,7 @@ function toCsv(rows: Rows): string {
 }
 
 /** Runs the analyst agent on a conversation and returns the narrative to post back. */
-export async function runAgent(messages: ModelMessage[], abortSignal?: AbortSignal) {
+export async function runAgent(messages: ModelMessage[], { abortSignal, trace }: { abortSignal?: AbortSignal; trace?: TraceContext } = {}) {
   // In-process bash interpreter: no network, virtual filesystem, fresh per request.
   // defenseInDepth blocks host globals while a command runs; Next dev's async hooks trip it and crash the server.
   const sandbox = new Bash({ python: true, cwd: "/workspace", defenseInDepth: process.env.NODE_ENV !== "development" });
@@ -145,6 +154,7 @@ export async function runAgent(messages: ModelMessage[], abortSignal?: AbortSign
     bash: bashTools.bash,
     ExecuteMongoDB: createExecuteMongoDBTool(writeRows),
     ExecutePostHog: createExecutePostHogTool(writeRows),
+    ExecuteLangfuse: createExecuteLangfuseTool(writeRows),
     FinalizeReport,
   };
 
@@ -157,16 +167,21 @@ export async function runAgent(messages: ModelMessage[], abortSignal?: AbortSign
     ],
     messages,
     tools,
-    activeTools: isPostHogConfigured()
-      ? ["bash", "ExecuteMongoDB", "ExecutePostHog", "FinalizeReport"]
-      : ["bash", "ExecuteMongoDB", "FinalizeReport"],
+    activeTools: [
+      "bash",
+      "ExecuteMongoDB",
+      ...(isPostHogConfigured() ? (["ExecutePostHog"] as const) : []),
+      ...(isLangfuseConfigured() ? (["ExecuteLangfuse"] as const) : []),
+      "FinalizeReport",
+    ],
     // Near the step budget, force a report instead of a silent cutoff
     prepareStep: ({ stepNumber }) =>
       stepNumber >= MAX_STEPS - 3 ? { activeTools: ["FinalizeReport"], toolChoice: { type: "tool", toolName: "FinalizeReport" } } : {},
     stopWhen: [hasToolCall("FinalizeReport"), isStepCount(MAX_STEPS)],
     providerOptions: { gateway: { caching: "auto" } },
     abortSignal,
-    telemetry: { functionId: "data-analyst-agent" },
+    runtimeContext: trace,
+    telemetry: { functionId: "data-analyst-agent", includeRuntimeContext: { userId: true, sessionId: true, tags: true } },
   });
 
   const report = result.steps

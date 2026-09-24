@@ -1,0 +1,31 @@
+name: AIUsageEvents
+type: fact_table
+database: IntegrationDB
+table: IntegrationDB.AIUsageEvents
+grain: one row per AI model call (FinOps ledger)
+description: >-
+  Tokens and cost of every AI call made by the backend for project builder, online store builder, their titles and the help center chat.
+  NOT included (only in Langfuse): smart notifications, smart translations, prompt enhancer, image generation.
+common_questions:
+  - AI cost per business / project / interaction type / model
+  - Which clients spend the most on AI project generation?
+
+dimensions:
+  - {name: businessId, sql: businessId, type: string, description: "ObjectId -> ClientDB.Business._id"}
+  - {name: projectId, sql: projectId, type: string, description: "ObjectId -> ProjectsDB.Projects._id (null for help center)"}
+  - {name: accountId, sql: accountId, type: string, description: "ObjectId -> AccountDB.Account._id (help center only)"}
+  - {name: interactionType, sql: interactionType, type: string, description: "project_generation | project_utility | storefront_generation | storefront_utility | help_center_chat | assistant_chat_title"}
+  - {name: functionId, sql: functionId, type: string, description: "Langfuse trace/observation name, e.g. project-builder-chat, store-builder-chat, projects-version-title, help-center.chat (often empty on old rows)"}
+  - {name: model, sql: model, type: string, description: "Model id, e.g. claude-sonnet-4-6 (join AIModels.modelId, ids are not always normalized)"}
+  - {name: provider, sql: provider, type: string, description: "anthropic | anthropic.messages | gateway | vercel | deepseek.chat"}
+  - {name: traceId, sql: traceId, type: string, description: Langfuse trace id (plain string, NOT ObjectId). Use it to fetch the trace in Langfuse}
+
+time_dimensions:
+  - {name: createdAt, sql: createdAt, type: time, description: Call time}
+
+measures:
+  - {name: costUsd, sql: costUsd, type: sum, description: "Cost in USD computed from AIModels pricing (0 when the model has no price)"}
+  - {name: inputTokens, sql: inputTokens, type: sum, description: Input tokens (includes cache read/write)}
+  - {name: outputTokens, sql: outputTokens, type: sum, description: Output tokens}
+  - {name: cacheReadTokens, sql: cacheReadTokens, type: sum, description: Cache read tokens}
+  - {name: cacheWriteTokens, sql: cacheWriteTokens, type: sum, description: Cache write tokens}

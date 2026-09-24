@@ -365,3 +365,64 @@ entities:
     use_cases: >-
       Wallet inventory reporting
       Voucher type distribution
+
+  - name: Projects
+    grain: one row per AI-generated project
+    description: >-
+      Websites, online stores and app modules generated with the AI project builder, per business. Has accumulated totalCost (USD) and totalTokens.
+    fields: ['_id', 'businessId', 'creatorAccountId', 'templateId', 'name', 'kind', 'status', 'currentVersion', 'deployedVersion', 'deployedUrl', 'deleted', 'totalCost', 'totalTokens', 'createdAt', 'updatedAt']
+    join_hint: "businessId -> ClientDB.Business._id (other DB: query separately). Projects._id = AIUsageEvents.projectId = Langfuse sessionId."
+    example_questions:
+      - How many projects has each business generated?
+      - Which projects cost the most?
+      - How many projects are deployed?
+    use_cases: >-
+      AI builder adoption per client
+      AI cost per project
+
+  - name: ProjectConversations
+    grain: one row per builder conversation
+    description: >-
+      Conversations with the AI project builder inside a project (title, last version).
+    fields: ['_id', 'projectId', 'title', 'status', 'lastVersionNumber', 'createdAt', 'updatedAt']
+    example_questions:
+      - How many conversations per project?
+
+  - name: ProjectChats
+    grain: one row per builder chat message
+    description: >-
+      User prompts and assistant turns of the AI project builder. Assistant rows have usage.model, usage.cost and token counts.
+    fields: ['projectId', 'conversationId', 'role', 'content', 'version', 'stoppedByUser', 'usage.model', 'usage.cost', 'usage.inputTokens', 'usage.outputTokens', 'createdAt']
+    example_questions:
+      - How many prompts do users send per project?
+      - What did users ask the builder last week?
+
+  - name: Templates
+    grain: one row per project template
+    description: >-
+      Templates projects start from (Projects.templateId).
+    fields: ['_id', 'slug', 'displayName', 'kind', 'visibility']
+    example_questions:
+      - Which templates are used most?
+
+  - name: AIUsageEvents
+    grain: one row per AI call
+    description: >-
+      FinOps ledger: tokens and USD cost of each AI call (project builder, store builder, titles, help center chat) with businessId, projectId, model and Langfuse traceId.
+      Smart notifications and translations are NOT here: use Langfuse.
+    fields: ['businessId', 'projectId', 'accountId', 'interactionType', 'functionId', 'model', 'provider', 'traceId', 'costUsd', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'createdAt']
+    example_questions:
+      - AI cost per client this month
+      - Cost by model and interaction type
+      - Tokens spent on help center chat
+    use_cases: >-
+      AI cost per client and project
+      Model usage mix
+
+  - name: AIModels
+    grain: one row per AI model
+    description: >-
+      AI model catalog with prices in USD per 1M tokens (input, output, cacheRead, cacheWrite).
+    fields: ['name', 'modelId', 'provider', 'businessIds', 'isActive', 'supportsReasoning', 'contextWindow', 'pricing']
+    example_questions:
+      - Which models are active and how much do they cost?

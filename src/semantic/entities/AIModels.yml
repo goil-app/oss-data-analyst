@@ -1,0 +1,18 @@
+name: AIModels
+type: dimension_table
+database: IntegrationDB
+table: IntegrationDB.AIModels
+grain: one row per AI model offered
+description: AI models available in the platform with their prices (USD per 1M tokens).
+
+dimensions:
+  - {name: name, sql: name, type: string, description: "Display name, e.g. Kimi K3"}
+  - {name: modelId, sql: modelId, type: string, description: "Gateway id, e.g. moonshotai/kimi-k3"}
+  - {name: provider, sql: provider, type: string, description: Provider}
+  - {name: businessIds, sql: businessIds, type: array, description: "Businesses the model is restricted to (empty = all)"}
+  - {name: isActive, sql: isActive, type: boolean, description: Offered now}
+  - {name: supportsReasoning, sql: supportsReasoning, type: boolean, description: Reasoning model}
+  - {name: contextWindow, sql: contextWindow, type: number, description: Context window tokens}
+  - {name: pricing.input, sql: pricing.input, type: number, description: USD per 1M input tokens}
+  - {name: pricing.output, sql: pricing.output, type: number, description: USD per 1M output tokens}
+  - {name: pricing.cacheRead, sql: pricing.cacheRead, type: number, description: USD per 1M cached input tokens}

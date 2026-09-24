@@ -28,7 +28,7 @@ dimensions:
   - name: feedback
     sql: feedback
     type: string
-    description: User feedback (positive/negative/rating)
+    description: "User feedback: number (>0 positive, 0 none, <0 negative)"
 
   - name: modelUsed
     sql: modelUsed
@@ -44,6 +44,11 @@ dimensions:
     sql: businessId
     type: string
     description: Business identifier
+
+  - name: traceId
+    sql: traceId
+    type: string
+    description: Langfuse trace id of the smart-notification generation (plain string). Join key with Langfuse
 
 time_dimensions:
   - name: date
