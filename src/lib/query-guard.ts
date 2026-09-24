@@ -4,7 +4,11 @@
  * this module rejects queries that could write, run server-side JS, or touch PII.
  */
 
-const DEFAULT_PII_FIELDS = ["phone", "username", "latitude", "longitude", "uniqueAuthCode", "walletNumber", "street", "attributesValue"];
+const DEFAULT_PII_FIELDS = [
+  "phone", "username", "latitude", "longitude", "uniqueAuthCode", "walletNumber", "street", "attributesValue",
+  // secrets (SettingsDB.Settings: SMTP, WhatsApp, API keys; OnboardingSession)
+  "password", "accessToken", "apiKey", "apiKeys", "publishableKey", "secretKey", "keys", "pwdHash", "generatedPassword", "tokens",
+];
 
 export const PII_FIELDS = new Set([
   ...DEFAULT_PII_FIELDS,

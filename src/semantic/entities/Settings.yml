@@ -1,0 +1,30 @@
+name: Settings
+type: dimension_table
+database: SettingsDB
+table: SettingsDB.Settings
+grain: one row per business
+description: Configuration of one business. Deeply nested; always $project only the fields needed. Secret fields (keys, passwords, tokens) are redacted.
+common_questions:
+  - Which setting does business X have?
+  - How many businesses have feature Y enabled?
+
+dimensions:
+  - {name: businessId, sql: businessId, type: string, description: "ObjectId -> ClientDB.Business._id. Filter by it to read one business"}
+  - {name: status, sql: status, type: boolean, description: Settings active}
+  - {name: timeZone, sql: timeZone, type: string, description: "e.g. Europe/Madrid"}
+  - {name: languages.key, sql: languages.key, type: array, description: "App languages, e.g. ca, es, en"}
+  - {name: notification.custom.defaultLanguage, sql: notification.custom.defaultLanguage, type: string, description: Default notification language}
+  - {name: notification.sms.enabled, sql: notification.sms.enabled, type: boolean, description: SMS notifications enabled}
+  - {name: notification.whatsapp.enabled, sql: notification.whatsapp.enabled, type: boolean, description: WhatsApp notifications enabled}
+  - {name: notification.email.mailHtmlEnabled, sql: notification.email.mailHtmlEnabled, type: boolean, description: HTML emails enabled}
+  - {name: notification.email.transport.provider, sql: notification.email.transport.provider, type: string, description: Email provider (custom SMTP when set)}
+  - {name: authentication.provider, sql: authentication.provider, type: string, description: "App login provider, e.g. whatsapp, sms"}
+  - {name: backoffice.2FA, sql: backoffice.2FA, type: boolean, description: Two-factor authentication in the backoffice}
+  - {name: backoffice.soundOnAlertReceived, sql: backoffice.soundOnAlertReceived, type: boolean, description: Sound when an alert arrives}
+  - {name: account.limitSessions, sql: account.limitSessions, type: boolean, description: Limit concurrent app sessions}
+  - {name: account.allowSamePhoneNumberSignUp, sql: account.allowSamePhoneNumberSignUp, type: boolean, description: Several accounts per phone}
+  - {name: alert.restrictVisibility, sql: alert.restrictVisibility, type: boolean, description: Restrict alert visibility}
+  - {name: appInfo.appVersionIos, sql: appInfo.appVersionIos, type: string, description: "Minimum/current iOS app version (0.0.0 = not set)"}
+  - {name: appInfo.appVersionAndroid, sql: appInfo.appVersionAndroid, type: string, description: "Minimum/current Android app version (0.0.0 = not set)"}
+  - {name: paymentGateways.stripe.currency, sql: paymentGateways.stripe.currency, type: string, description: Stripe currency}
+  - {name: section.deniedSections, sql: section.deniedSections, type: array, description: App sections hidden for the business}

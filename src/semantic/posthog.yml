@@ -9,7 +9,7 @@ tables:
       event: Event name (see events below)
       timestamp: Event time (always filter on it, e.g. timestamp > now() - INTERVAL 30 DAY)
       distinct_id: Backoffice user id (24-hex, the logged-in admin account id)
-      person_id: PostHog person UUID (use for unique users: uniq(person_id))
+      person_id: "PostHog person UUID (use for unique users: uniq(person_id))"
       properties.<name>: Event property, e.g. properties.$pathname
       person.properties.<name>: Person property at event time, e.g. person.properties.business_id
   persons:
@@ -74,7 +74,7 @@ events:
   help:chat_message_sent: User asked the AI help assistant. props text (the question), word_count, source (chat_input | home | doc), has_page_context, has_error_context
   help:chat_response_completed: AI assistant answered. props status (done | error), latency_ms, citation_count, had_tool_calls
   help:agent_doc_fetched: AI assistant read a help doc to answer. props slug, title
-  help:resolution_answered: "Did this solve your problem?" answered. props resolved (bool), context (chat | doc), slug, message_id
+  help:resolution_answered: '"Did this solve your problem?" answered. props resolved (bool), context (chat | doc), slug, message_id'
   help:auto_diagnosis_triggered: Automatic error diagnosis launched. props error_count
   help:error_detected: Backoffice API error seen by the help widget. props kind (action | background), status (HTTP), method, url_path
   help:chat_cleared: Chat history cleared. props message_count

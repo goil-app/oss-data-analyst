@@ -48,12 +48,17 @@ dimensions:
   - name: isDeleted
     sql: isDeleted
     type: boolean
-    description: Soft-delete flag
+    description: 'Soft-delete flag. Missing on some documents: for active businesses always filter {"isDeleted": {"$ne": true}}, never isDeleted false'
 
   - name: version
     sql: version
     type: number
-    description: Business configuration version number
+    description: Business configuration version number (NOT the backoffice version)
+
+  - name: backoffice.version
+    sql: backoffice.version
+    type: string
+    description: "Backoffice web app version deployed for this business, semver string e.g. 4.27.0. Group by it for 'which backoffice version is deployed'"
 
 joins:
   - name: Plan

@@ -3,14 +3,16 @@ entities:
     grain: one row per business/tenant
     description: >-
       Business (tenant) configuration including name, subdomain, plan assignment, category, and soft-delete status. Each business references a Plan via planId.
-    fields: ['_id', 'name', 'subdomain', 'clientId', 'planId', 'category', 'uniqueAuthCode', 'isDeleted', 'version']
+    fields: ['_id', 'name', 'subdomain', 'clientId', 'planId', 'category', 'isDeleted', 'version', 'backoffice.version', 'tags']
+    lookup_hint: 'Find a business by name with a case-insensitive regex, never exact match or fetching all: {"name": {"$regex": "gls connect", "$options": "i"}}, projection {"name": 1, "subdomain": 1}'
     join_hint: "To join Business with Plan use $lookup: { from: 'Plan', localField: 'planId', foreignField: '_id', as: 'plan' }. Both planId and Plan._id are ObjectId — never compare them as strings."
     example_questions:
-      - How many active businesses are there?
+      - 'How many active businesses are there? (filter {"isDeleted": {"$ne": true}}: the field is missing on some documents)'
       - Which businesses use each plan?
       - How many businesses per category?
       - List all deleted businesses
       - Show businesses by plan tier
+      - Which backoffice version is deployed, grouped by version? (backoffice.version, exclude isDeleted)
     use_cases: >-
       Tenant management reporting
       Plan adoption analysis
@@ -375,6 +377,7 @@ entities:
     example_questions:
       - How many projects has each business generated?
       - Which projects cost the most?
+      - "Last week's AI spend: which client and which project spent the most dollars? -> AIUsageEvents $match createdAt, $group by businessId / projectId summing costUsd, then names from ClientDB.Business and ProjectsDB.Projects (separate queries)"
       - How many projects are deployed?
     use_cases: >-
       AI builder adoption per client
@@ -412,6 +415,7 @@ entities:
       Smart notifications and translations are NOT here: use Langfuse.
     fields: ['businessId', 'projectId', 'accountId', 'interactionType', 'functionId', 'model', 'provider', 'traceId', 'costUsd', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'createdAt']
     example_questions:
+      - AI spend last week, total and per client / per project (costUsd; interactionType project_* and storefront_*)
       - AI cost per client this month
       - Cost by model and interaction type
       - Tokens spent on help center chat
@@ -426,3 +430,16 @@ entities:
     fields: ['name', 'modelId', 'provider', 'businessIds', 'isActive', 'supportsReasoning', 'contextWindow', 'pricing']
     example_questions:
       - Which models are active and how much do they cost?
+
+  - name: Settings
+    grain: one row per business (businessId)
+    description: >-
+      Per-business configuration: time zone, languages, enabled channels (sms, whatsapp, email), authentication provider, 2FA, session limits, mobile app versions.
+      Secrets are redacted. Use it to answer "which setting does business X have", not for analytics.
+    fields: ['businessId', 'status', 'timeZone', 'notification.sms.enabled', 'notification.whatsapp.enabled', 'notification.custom.defaultLanguage', 'languages.key', 'authentication.provider', 'backoffice.2FA', 'account.limitSessions', 'appInfo.appVersionIos', 'appInfo.appVersionAndroid']
+    join_hint: "businessId -> ClientDB.Business._id (other DB: query separately)."
+    example_questions:
+      - Which authentication provider does business X use?
+      - How many businesses have WhatsApp notifications enabled?
+      - Which mobile app version does each business have?
+      - Which businesses have 2FA enabled in the backoffice?

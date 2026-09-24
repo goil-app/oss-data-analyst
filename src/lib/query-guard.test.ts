@@ -45,3 +45,9 @@ test("redacts PII keys at any depth", () => {
     { a: 1, phone: "***", nested: [{ username: "***" }] },
   ]);
 });
+
+test("redacts Settings secrets and rejects querying them", () => {
+  const settings = { notification: { email: { transport: { smtp: { host: "h", password: "p" } } }, whatsapp: { keys: { accessToken: "t" } } }, retail: { medusa: { publishableKey: "k" } } };
+  assert.deepEqual(redactPii(settings), { notification: { email: { transport: { smtp: { host: "h", password: "***" } } }, whatsapp: { keys: "***" } }, retail: { medusa: { publishableKey: "***" } } });
+  rejected({ "notification.whatsapp.keys.accessToken": { $exists: true } });
+});

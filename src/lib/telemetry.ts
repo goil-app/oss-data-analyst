@@ -3,7 +3,7 @@ import { OpenTelemetry } from "@ai-sdk/otel";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { registerTelemetry } from "ai";
 
-/** Who asked, passed to generateText as runtimeContext and copied onto the Langfuse trace. */
+/** Who asked: copied onto the Langfuse trace (propagateAttributes). */
 export type TraceContext = { userId?: string; sessionId?: string; tags?: string[] };
 
 // Stored on globalThis: Next bundles instrumentation.ts and routes separately.
@@ -14,19 +14,22 @@ export function startTelemetry() {
   console.log("[Telemetry] Langfuse tracing enabled");
   g.langfuse = new LangfuseSpanProcessor();
   new NodeSDK({ spanProcessors: [g.langfuse] }).start();
-  // Langfuse reads trace-level attributes from the root (operation) span
-  registerTelemetry(new OpenTelemetry({
-    enrichSpan: ({ spanType, runtimeContext }) => {
-      const t = runtimeContext as TraceContext | undefined;
-      if (spanType !== "operation" || !t) return undefined;
-      return {
-        "langfuse.trace.name": "ask",
-        ...(t.userId && { "user.id": t.userId }),
-        ...(t.sessionId && { "session.id": t.sessionId }),
-        ...(t.tags?.length && { "langfuse.trace.tags": t.tags }),
-      };
+  registerTelemetry(new OpenTelemetry());
+}
+
+export const isTracing = () => Boolean(g.langfuse);
+
+/** Records a 👍/👎 from Discord as a Langfuse score on the answer's trace. */
+export async function scoreTrace(traceId: string, value: 1 | -1, userId: string) {
+  const res = await fetch(new URL("/api/public/scores", process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com"), {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`).toString("base64")}`,
+      "Content-Type": "application/json",
     },
-  }));
+    body: JSON.stringify({ traceId, name: "user-feedback", value, dataType: "NUMERIC", comment: `by ${userId}` }),
+  });
+  if (!res.ok) throw new Error(`Langfuse score HTTP ${res.status}: ${await res.text()}`);
 }
 
 /** Serverless functions freeze after the response: flush spans before the handler ends. */

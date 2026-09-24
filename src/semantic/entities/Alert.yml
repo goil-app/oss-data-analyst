@@ -62,7 +62,7 @@ dimensions:
   - name: businessId
     sql: businessId
     type: string
-    description: Business (tenant) that owns the alert (ObjectId ref to ClientDB.Business._id, different database: query it separately)
+    description: "Business (tenant) that owns the alert (ObjectId ref to ClientDB.Business._id, different database: query it separately)"
 
   - name: region
     sql: region
@@ -98,8 +98,8 @@ dimensions:
 
 notes:
   - Personal data (not queryable, redacted): location.latitude, location.longitude, location.street, additional.street, metadata.account.username, metadata.account.phone, metadata.account.attributesValue.
-  - Panic button filter: { $lookup: { from: "AlertType", localField: "alertType", foreignField: "_id", as: "t" } }, { $unwind: "$t" }, { $match: { "t.trackingType": { $in: [1, 2, 3, 4] } } }.
-  - Alerts per business: businessId refers to ClientDB.Business (other database). Group by businessId here, then query ClientDB.Business with { _id: { $in: [...] } } to get the names.
+  - 'Panic button filter: { $lookup: { from: "AlertType", localField: "alertType", foreignField: "_id", as: "t" } }, { $unwind: "$t" }, { $match: { "t.trackingType": { $in: [1, 2, 3, 4] } } }.'
+  - 'Alerts per business: businessId refers to ClientDB.Business (other database). Group by businessId here, then query ClientDB.Business with { _id: { $in: [...] } } to get the names.'
   - Many alert types are tests or deleted (names like "Prueba", "QA", AlertType.deleted = true). When relevant, split or mention test/deleted types instead of mixing them silently with real usage.
 
 joins:

@@ -1,14 +1,22 @@
-import { Chat } from "chat";
+import { Actions, Button, Card, CardText, Chat } from "chat";
+import type { ModelMessage } from "ai";
 import { createDiscordAdapter } from "@chat-adapter/discord";
 import { createRedisState } from "@chat-adapter/state-redis";
 import { runAgent } from "./agent";
-import { flushTelemetry } from "./telemetry";
+import { flushTelemetry, scoreTrace } from "./telemetry";
+
+const state = createRedisState();
 
 export const bot = new Chat({
   userName: "data-analyst",
   adapters: { discord: createDiscordAdapter() },
-  state: createRedisState(),
+  state,
 });
+
+// Follow-ups ("and last month?"): the last turns of each user in each channel, forgotten after 30 min
+const HISTORY_TURNS = 3;
+const HISTORY_TTL_MS = 30 * 60_000;
+const historyKey = (channelId: string, userId: string) => `history:${channelId}:${userId}`;
 
 /** Only servers in DISCORD_ALLOWED_GUILD_IDS can use the bot. Empty list = nobody (fail closed). DMs are never allowed. */
 const ALLOWED_GUILDS = new Set(
@@ -41,14 +49,46 @@ bot.onSlashCommand("/ask", async (event) => {
   }
 
   try {
-    const answer = await runAgent([{ role: "user", content: event.text }], {
+    const key = historyKey(event.channel.id, event.user.userId);
+    const history = await state.getList<ModelMessage>(key);
+    const answer = await runAgent([...history, { role: "user", content: event.text }], {
       trace: { userId: event.user.userName || event.user.userId, sessionId: event.channel.id, tags: ["discord", `guild:${guildId}`] },
     });
-    for (const part of chunks(`> ${event.text}\n\n${answer}`)) await event.channel.post(part);
+    for (const part of chunks(`> ${event.text}\n\n${answer.narrative}`)) await event.channel.post(part);
+
+    const turn: ModelMessage[] = [
+      { role: "user", content: event.text },
+      { role: "assistant", content: answer.query ? `${answer.narrative}\n\nQuery: ${answer.query}` : answer.narrative },
+    ];
+    for (const m of turn) await state.appendToList(key, m, { maxLength: HISTORY_TURNS * 2, ttlMs: HISTORY_TTL_MS });
+
+    if (answer.traceId) {
+      await event.channel.post(Card({
+        children: [
+          CardText("T'ha estat útil?"),
+          Actions([
+            Button({ id: "feedback-up", label: "👍", value: answer.traceId }),
+            Button({ id: "feedback-down", label: "👎", value: answer.traceId }),
+          ]),
+        ],
+      }));
+    }
   } catch (error) {
     console.error("[Bot] /ask failed:", error);
     await event.channel.post("Ho sento, s'ha produït un error processant la consulta.");
   } finally {
     await flushTelemetry();
+  }
+});
+
+bot.onAction(["feedback-up", "feedback-down"], async (event) => {
+  if (!event.value) return;
+  const up = event.actionId === "feedback-up";
+  try {
+    await scoreTrace(event.value, up ? 1 : -1, event.user.userName || event.user.userId);
+    // Replacing the card removes the buttons: one vote per answer
+    await event.adapter.editMessage(event.threadId, event.messageId, Card({ children: [CardText(up ? "Gràcies! 👍" : "Gràcies, ho revisarem 👎")] }));
+  } catch (error) {
+    console.error("[Bot] Feedback failed:", error);
   }
 });

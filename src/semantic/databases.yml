@@ -80,3 +80,8 @@ databases:
     collections:
       - AIUsageEvents
       - AIModels
+
+  - name: SettingsDB
+    description: Per-business configuration (one Settings document per business)
+    collections:
+      - Settings

@@ -8,7 +8,8 @@ import { getSchemaSummary, SEMANTIC_DIR } from "./mongodb";
 import { createExecuteMongoDBTool, PREVIEW_ROWS, type Rows } from "./tools/execute-mongodb";
 import { createExecutePostHogTool, isPostHogConfigured } from "./tools/execute-posthog";
 import { createExecuteLangfuseTool, isLangfuseConfigured } from "./tools/execute-langfuse";
-import type { TraceContext } from "./telemetry";
+import { propagateAttributes, startActiveObservation } from "@langfuse/tracing";
+import { isTracing, type TraceContext } from "./telemetry";
 
 // Picked by benchmark (2026-09): same accuracy as claude-sonnet-5 on our questions at ~10x lower cost
 export const MODEL = process.env.MODEL ?? "openai/gpt-5.6-luna";
@@ -126,8 +127,21 @@ function toCsv(rows: Rows): string {
   return [columns.join(","), ...rows.map((r) => columns.map((c) => cell(r[c])).join(","))].join("\n");
 }
 
-/** Runs the analyst agent on a conversation and returns the narrative to post back. */
-export async function runAgent(messages: ModelMessage[], { abortSignal, trace }: { abortSignal?: AbortSignal; trace?: TraceContext } = {}) {
+export type AgentAnswer = { narrative: string; query?: string; traceId?: string };
+
+/** Runs the analyst agent on a conversation inside one Langfuse "ask" trace. traceId is set when tracing is on. */
+export function runAgent(messages: ModelMessage[], { abortSignal, trace }: { abortSignal?: AbortSignal; trace?: TraceContext } = {}): Promise<AgentAnswer> {
+  return startActiveObservation("ask", (span) =>
+    propagateAttributes({ traceName: "ask", ...trace }, async () => {
+      span.update({ input: messages.at(-1)?.content });
+      const answer = await analyze(messages, abortSignal);
+      span.update({ output: answer.narrative });
+      return { ...answer, traceId: isTracing() ? span.traceId : undefined };
+    })
+  );
+}
+
+async function analyze(messages: ModelMessage[], abortSignal?: AbortSignal): Promise<AgentAnswer> {
   // In-process bash interpreter: no network, virtual filesystem, fresh per request.
   // defenseInDepth blocks host globals while a command runs; Next dev's async hooks trip it and crash the server.
   const sandbox = new Bash({ python: true, cwd: "/workspace", defenseInDepth: process.env.NODE_ENV !== "development" });
@@ -180,8 +194,7 @@ export async function runAgent(messages: ModelMessage[], { abortSignal, trace }:
     stopWhen: [hasToolCall("FinalizeReport"), isStepCount(MAX_STEPS)],
     providerOptions: { gateway: { caching: "auto" } },
     abortSignal,
-    runtimeContext: trace,
-    telemetry: { functionId: "data-analyst-agent", includeRuntimeContext: { userId: true, sessionId: true, tags: true } },
+    telemetry: { functionId: "data-analyst-agent" },
   });
 
   const report = result.steps
@@ -191,5 +204,5 @@ export async function runAgent(messages: ModelMessage[], { abortSignal, trace }:
   const { inputTokens, outputTokens, inputTokenDetails } = result.totalUsage;
   console.log(`[Agent] ${result.steps.length} steps, input ${inputTokens} (cached ${inputTokenDetails?.cacheReadTokens ?? 0}), output ${outputTokens}, query: ${report?.query ?? "-"}`);
 
-  return report?.narrative ?? (result.text || "Ho sento, no he pogut generar una resposta.");
+  return { narrative: report?.narrative ?? (result.text || "Ho sento, no he pogut generar una resposta."), query: report?.query };
 }
