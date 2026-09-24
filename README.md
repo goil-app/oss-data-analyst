@@ -7,7 +7,7 @@ Discord bot that answers natural-language questions about Goil data. An AI agent
 ```
 Discord /ask message:<question>
   → /api/webhooks/discord (HTTP Interactions, Chat SDK)
-  → agent (AI SDK 7, anthropic/claude-sonnet-5 via AI Gateway)
+  → agent (AI SDK 7, openai/gpt-5.6-luna via AI Gateway)
       bash           just-bash, in-process: semantic/ YAML, /tmp/mongo_schema.txt,
                      /tmp/mongodb_result.{json,csv} (jq, xan, sqlite3, python3 stdlib; no network)
       ExecuteMongoDB read-only queries, guarded (see below)

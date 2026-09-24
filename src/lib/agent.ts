@@ -8,7 +8,8 @@ import { getSchemaSummary, SEMANTIC_DIR } from "./mongodb";
 import { createExecuteMongoDBTool, PREVIEW_ROWS, type Rows } from "./tools/execute-mongodb";
 import { createExecutePostHogTool, isPostHogConfigured } from "./tools/execute-posthog";
 
-export const MODEL = process.env.MODEL ?? "anthropic/claude-sonnet-5";
+// Picked by benchmark (2026-09): same accuracy as claude-sonnet-5 on our questions at ~10x lower cost
+export const MODEL = process.env.MODEL ?? "openai/gpt-5.6-luna";
 
 const FinalizeReport = tool({
   description: "Finalize the answer with the query that produced it (MongoDB or HogQL) and the narrative for the user.",
