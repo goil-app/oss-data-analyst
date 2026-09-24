@@ -130,18 +130,43 @@ function toCsv(rows: Rows): string {
 export type AgentAnswer = { narrative: string; query?: string };
 
 /** Runs the analyst agent on a conversation inside one Langfuse "ask" trace (a no-op span when tracing is off). */
-export function runAgent(messages: ModelMessage[], { abortSignal, trace }: { abortSignal?: AbortSignal; trace?: TraceContext } = {}): Promise<AgentAnswer> {
+type RunOptions = { abortSignal?: AbortSignal; trace?: TraceContext; onProgress?: (step: string) => void };
+
+/** One human-readable line per tool call, shown live in Discord while the agent works. */
+export function describeToolCall(toolName: string, input: Record<string, unknown>): string {
+  switch (toolName) {
+    case "bash": {
+      const command = String(input.command ?? "");
+      const entities = [...command.matchAll(/entities\/(\w+)\.yml/g)].map((m) => m[1]);
+      if (entities.length) return `📖 Llegint l'esquema: ${[...new Set(entities)].join(", ")}`;
+      if (command.includes("mongodb_result")) return "🧮 Analitzant els resultats";
+      return "🔎 Explorant l'esquema";
+    }
+    case "ExecuteMongoDB":
+      return `🗄️ Consultant ${input.database}.${input.collection}`;
+    case "ExecutePostHog":
+      return "📈 Consultant PostHog";
+    case "ExecuteLangfuse":
+      return `🔭 Consultant Langfuse (${input.endpoint})`;
+    case "FinalizeReport":
+      return "✍️ Redactant la resposta";
+    default:
+      return `⚙️ ${toolName}`;
+  }
+}
+
+export function runAgent(messages: ModelMessage[], { abortSignal, trace, onProgress }: RunOptions = {}): Promise<AgentAnswer> {
   return startActiveObservation("ask", (span) =>
     propagateAttributes({ traceName: "ask", ...trace }, async () => {
       span.update({ input: messages.at(-1)?.content });
-      const answer = await analyze(messages, abortSignal);
+      const answer = await analyze(messages, abortSignal, onProgress);
       span.update({ output: answer.narrative });
       return answer;
     })
   );
 }
 
-async function analyze(messages: ModelMessage[], abortSignal?: AbortSignal): Promise<AgentAnswer> {
+async function analyze(messages: ModelMessage[], abortSignal?: AbortSignal, onProgress?: (step: string) => void): Promise<AgentAnswer> {
   // In-process bash interpreter: no network, virtual filesystem, fresh per request.
   // defenseInDepth blocks host globals while a command runs; Next dev's async hooks trip it and crash the server.
   const sandbox = new Bash({ python: true, cwd: "/workspace", defenseInDepth: process.env.NODE_ENV !== "development" });
@@ -194,6 +219,7 @@ async function analyze(messages: ModelMessage[], abortSignal?: AbortSignal): Pro
     stopWhen: [hasToolCall("FinalizeReport"), isStepCount(MAX_STEPS)],
     providerOptions: { gateway: { caching: "auto" } },
     abortSignal,
+    onToolExecutionStart: ({ toolCall }) => onProgress?.(describeToolCall(toolCall.toolName, toolCall.input as Record<string, unknown>)),
     telemetry: { functionId: "data-analyst-agent" },
   });
 

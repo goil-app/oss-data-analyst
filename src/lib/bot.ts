@@ -3,6 +3,7 @@ import type { ModelMessage } from "ai";
 import { createDiscordAdapter } from "@chat-adapter/discord";
 import { createRedisState } from "@chat-adapter/state-redis";
 import { runAgent } from "./agent";
+import { liveProgress } from "./progress";
 import { flushTelemetry } from "./telemetry";
 
 const state = createRedisState();
@@ -48,13 +49,20 @@ bot.onSlashCommand("/ask", async (event) => {
     return;
   }
 
+  // Live progress: one status message edited as tools run, then replaced by the answer
+  const status = await event.channel.post("🤔 Pensant…");
+  const progress = liveProgress((text) => status.edit(text));
   try {
     const key = historyKey(event.channel.id, event.user.userId);
     const history = await state.getList<ModelMessage>(key);
     const answer = await runAgent([...history, { role: "user", content: event.text }], {
       trace: { userId: event.user.userName || event.user.userId, sessionId: event.channel.id, tags: ["discord", `guild:${guildId}`] },
+      onProgress: progress.add,
     });
-    for (const part of chunks(`> ${event.text}\n\n${answer.narrative}`)) await event.channel.post(part);
+    await progress.done();
+    const [first, ...rest] = chunks(`> ${event.text}\n\n${answer.narrative}`);
+    await status.edit(first);
+    for (const part of rest) await event.channel.post(part);
 
     const turn: ModelMessage[] = [
       { role: "user", content: event.text },
@@ -63,7 +71,8 @@ bot.onSlashCommand("/ask", async (event) => {
     for (const m of turn) await state.appendToList(key, m, { maxLength: HISTORY_TURNS * 2, ttlMs: HISTORY_TTL_MS });
   } catch (error) {
     console.error("[Bot] /ask failed:", error);
-    await event.channel.post("Ho sento, s'ha produït un error processant la consulta.");
+    await progress.done();
+    await status.edit("Ho sento, s'ha produït un error processant la consulta.");
   } finally {
     await flushTelemetry();
   }
