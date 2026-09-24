@@ -18,7 +18,9 @@ dimensions:
   - name: name
     sql: name
     type: string
-    description: Account type display name
+    description: >
+      NOT the display name: an ObjectId ref to AccountDB.Translation._id. The readable name is
+      Translation.es / .ca, falling back to .default (see databases.yml header for the $lookup)
 
   - name: index
     sql: index
@@ -33,7 +35,7 @@ dimensions:
   - name: deleted
     sql: deleted
     type: boolean
-    description: Soft-delete flag
+    description: 'Soft-delete flag. Missing means active, so filter active ones with {"deleted": {"$ne": true}}'
 
 measures:
   - name: count
@@ -47,3 +49,11 @@ measures:
     description: Number of non-deleted account types
     filters:
       - sql: "deleted = false OR deleted does not exist"
+
+joins:
+  - name: Translation
+    database: AccountDB
+    collection: Translation
+    type: many_to_one
+    local_field: name
+    foreign_field: _id

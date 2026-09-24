@@ -1,5 +1,12 @@
 # Database Catalog
 # Lists all available MongoDB databases and their collections
+#
+# Translated names: many "name"/"description"/"displayName" fields are NOT text but an ObjectId
+# pointing to the Translation collection OF THE SAME DATABASE (each DB has its own copy).
+# Join on Translation._id (never on tag) and read es/ca, falling back to "default" (always set):
+#   {"$lookup": {"from": "Translation", "localField": "name", "foreignField": "_id", "as": "t"}},
+#   {"$addFields": {"label": {"$ifNull": [{"$first": "$t.es"}, {"$first": "$t.default"}]}}}
+# Examples: AccountDB AccountType.name, AccountRole.name, Channel.name; AlertDB AlertType.name/description.
 
 databases:
   - name: ClientDB
@@ -30,6 +37,7 @@ databases:
       - AccountSessionInfo
       - Channel
       - ChannelAccount
+      - Translation
 
   - name: AlertDB
     description: Emergency alerts, alert types, state transition records, and GPS location trails
