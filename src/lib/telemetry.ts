@@ -11,6 +11,7 @@ const g = globalThis as { langfuse?: LangfuseSpanProcessor };
 
 export function startTelemetry() {
   if (process.env.OBSERVABILITY_ENABLED !== "true" || g.langfuse) return;
+  console.log("[Telemetry] Langfuse tracing enabled");
   g.langfuse = new LangfuseSpanProcessor();
   new NodeSDK({ spanProcessors: [g.langfuse] }).start();
   // Langfuse reads trace-level attributes from the root (operation) span
@@ -30,5 +31,6 @@ export function startTelemetry() {
 
 /** Serverless functions freeze after the response: flush spans before the handler ends. */
 export async function flushTelemetry() {
+  if (!g.langfuse) console.warn("[Telemetry] Not started: no spans exported");
   await g.langfuse?.forceFlush().catch((err) => console.warn("[Telemetry] Flush failed:", err));
 }
