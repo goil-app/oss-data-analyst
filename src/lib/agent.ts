@@ -9,7 +9,7 @@ import { createExecuteMongoDBTool, PREVIEW_ROWS, type Rows } from "./tools/execu
 import { createExecutePostHogTool, isPostHogConfigured } from "./tools/execute-posthog";
 import { createExecuteLangfuseTool, isLangfuseConfigured } from "./tools/execute-langfuse";
 import { propagateAttributes, startActiveObservation } from "@langfuse/tracing";
-import { isTracing, type TraceContext } from "./telemetry";
+import type { TraceContext } from "./telemetry";
 
 // Picked by benchmark (2026-09): same accuracy as claude-sonnet-5 on our questions at ~10x lower cost
 export const MODEL = process.env.MODEL ?? "openai/gpt-5.6-luna";
@@ -127,16 +127,16 @@ function toCsv(rows: Rows): string {
   return [columns.join(","), ...rows.map((r) => columns.map((c) => cell(r[c])).join(","))].join("\n");
 }
 
-export type AgentAnswer = { narrative: string; query?: string; traceId?: string };
+export type AgentAnswer = { narrative: string; query?: string };
 
-/** Runs the analyst agent on a conversation inside one Langfuse "ask" trace. traceId is set when tracing is on. */
+/** Runs the analyst agent on a conversation inside one Langfuse "ask" trace (a no-op span when tracing is off). */
 export function runAgent(messages: ModelMessage[], { abortSignal, trace }: { abortSignal?: AbortSignal; trace?: TraceContext } = {}): Promise<AgentAnswer> {
   return startActiveObservation("ask", (span) =>
     propagateAttributes({ traceName: "ask", ...trace }, async () => {
       span.update({ input: messages.at(-1)?.content });
       const answer = await analyze(messages, abortSignal);
       span.update({ output: answer.narrative });
-      return { ...answer, traceId: isTracing() ? span.traceId : undefined };
+      return answer;
     })
   );
 }

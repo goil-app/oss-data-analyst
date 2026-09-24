@@ -13,7 +13,7 @@ Discord /ask message:<question>
       ExecuteMongoDB read-only queries, guarded (see below)
       ExecutePostHog HogQL on PostHog, only if POSTHOG_API_KEY is set (query:read key)
       ExecuteLangfuse Langfuse Metrics API v2, traces and scores of the backend project, only if LANGFUSE_SOURCE_* are set
-      FinalizeReport narrative posted back to the channel, with 👍/👎 buttons
+      FinalizeReport narrative posted back to the channel
 ```
 
 Query tools return the row count and a 50-row preview to the model; the full result (max 1000 rows) goes to the sandbox files for analysis. Instructions are static (date in a separate block) with AI Gateway automatic prompt caching, so each step only pays for new tokens.
@@ -22,7 +22,7 @@ Follow-ups work: the last 3 questions and answers of each user in each channel a
 
 ## Observability
 
-With `OBSERVABILITY_ENABLED=true` and `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` (a Langfuse project for this bot, not the backend one it reads from), every `/ask` is one `ask` trace: Discord user as userId, channel as sessionId, `discord` and `guild:<id>` tags, every model call and tool call as child observations. The 👍/👎 buttons under each answer record a `user-feedback` score (1 / -1) on that trace, so bad answers can be found in Langfuse. `pnpm ask` traces too (userId `cli`).
+With `OBSERVABILITY_ENABLED=true` and `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` (a Langfuse project for this bot, not the backend one it reads from), every `/ask` is one `ask` trace: Discord user as userId, channel as sessionId, `discord` and `guild:<id>` tags, every model call and tool call as child observations. `pnpm ask` traces too (userId `cli`).
 
 ## Security
 

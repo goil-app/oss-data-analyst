@@ -1,9 +1,9 @@
-import { Actions, Button, Card, CardText, Chat } from "chat";
+import { Chat } from "chat";
 import type { ModelMessage } from "ai";
 import { createDiscordAdapter } from "@chat-adapter/discord";
 import { createRedisState } from "@chat-adapter/state-redis";
 import { runAgent } from "./agent";
-import { flushTelemetry, scoreTrace } from "./telemetry";
+import { flushTelemetry } from "./telemetry";
 
 const state = createRedisState();
 
@@ -61,34 +61,10 @@ bot.onSlashCommand("/ask", async (event) => {
       { role: "assistant", content: answer.query ? `${answer.narrative}\n\nQuery: ${answer.query}` : answer.narrative },
     ];
     for (const m of turn) await state.appendToList(key, m, { maxLength: HISTORY_TURNS * 2, ttlMs: HISTORY_TTL_MS });
-
-    if (answer.traceId) {
-      await event.channel.post(Card({
-        children: [
-          CardText("T'ha estat útil?"),
-          Actions([
-            Button({ id: "feedback-up", label: "👍", value: answer.traceId }),
-            Button({ id: "feedback-down", label: "👎", value: answer.traceId }),
-          ]),
-        ],
-      }));
-    }
   } catch (error) {
     console.error("[Bot] /ask failed:", error);
     await event.channel.post("Ho sento, s'ha produït un error processant la consulta.");
   } finally {
     await flushTelemetry();
-  }
-});
-
-bot.onAction(["feedback-up", "feedback-down"], async (event) => {
-  if (!event.value) return;
-  const up = event.actionId === "feedback-up";
-  try {
-    await scoreTrace(event.value, up ? 1 : -1, event.user.userName || event.user.userId);
-    // Replacing the card removes the buttons: one vote per answer
-    await event.adapter.editMessage(event.threadId, event.messageId, Card({ children: [CardText(up ? "Gràcies! 👍" : "Gràcies, ho revisarem 👎")] }));
-  } catch (error) {
-    console.error("[Bot] Feedback failed:", error);
   }
 });
