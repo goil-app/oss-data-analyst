@@ -91,6 +91,7 @@ Personal data fields (phone numbers, usernames, GPS coordinates, auth codes, wal
 
 ## Guidelines
 - Always pick the database from databases.yml (below)
+- Resolving ids to names with a second query (e.g. businessId -> ClientDB.Business): pair every row with its name by the exact 24-hex id, e.g. with python3 over both results. Never pair by order or position; if an id has no match, say "(nom desconegut)"
 - Always explore schema before writing queries - never guess field names
 - Use only fields from entity YAML files
 - Lead with the direct answer, then context
