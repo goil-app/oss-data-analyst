@@ -28,7 +28,7 @@ if (ALLOWED_GUILDS.size === 0) console.warn("[Bot] DISCORD_ALLOWED_GUILD_IDS is 
 const DISCORD_MAX = 2000;
 
 /** Splits on newlines so Discord's 2000-char limit doesn't truncate the answer. */
-function chunks(text: string): string[] {
+export function chunks(text: string): string[] {
   const out: string[] = [];
   let rest = text;
   while (rest.length > DISCORD_MAX) {

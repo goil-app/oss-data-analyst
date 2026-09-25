@@ -20,6 +20,10 @@ Query tools return the row count and a 50-row preview to the model; the full res
 
 Follow-ups work: the last 3 questions and answers of each user in each channel are kept in Redis for 30 minutes and sent with the next `/ask` ("i el mes passat?"). Mentions and thread replies would need the Discord Gateway (a permanently running listener), deliberately left out.
 
+## Weekly report
+
+Every Monday at 07:00 UTC a Vercel Cron calls `/api/cron/weekly-report` (auth: `CRON_SECRET`), which runs the agent with the prompt in `src/lib/weekly-report.ts` (AI spend, new projects and clients, Langfuse anomalies, backoffice usage, compared with the previous week) and posts the result to `WEEKLY_REPORT_CHANNEL_ID`. Change the report by editing that prompt; preview it without posting with `pnpm report`.
+
 ## Observability
 
 With `OBSERVABILITY_ENABLED=true` and `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` (a Langfuse project for this bot, not the backend one it reads from), every `/ask` is one `ask` trace: Discord user as userId, channel as sessionId, `discord` and `guild:<id>` tags, every model call and tool call as child observations. `pnpm ask` traces too (userId `cli`).
@@ -42,6 +46,7 @@ With `OBSERVABILITY_ENABLED=true` and `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY
 
 ```bash
 pnpm ask "Quants comptes estan validats?"   # run the agent locally against MongoDB
+pnpm report                                 # preview the weekly report (doesn't post)
 pnpm test                                   # unit tests (query guard, result preview, Langfuse URLs, YAML validity)
 pnpm eval                                   # evalite evals: real data + model, ground truth queried live (needs all credentials)
 pnpm lint && pnpm type-check && pnpm build

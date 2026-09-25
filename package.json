@@ -35,6 +35,7 @@
     "type-check": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "ask": "tsx --env-file=.env scripts/ask.ts",
+    "report": "tsx --env-file=.env scripts/report.ts",
     "eval": "evalite",
     "register-commands": "tsx --env-file=.env scripts/register-commands.ts"
   },
