@@ -40,6 +40,16 @@ export function chunks(text: string): string[] {
   return [...out, rest];
 }
 
+/** Edits a slash command's first reply. Interaction webhooks need no bot auth and work in any channel for 15 min. */
+async function editOriginal(token: string, content: string) {
+  const res = await fetch(`https://discord.com/api/v10/webhooks/${process.env.DISCORD_APPLICATION_ID}/${token}/messages/@original`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error(`Discord edit failed: ${res.status} ${await res.text()}`);
+}
+
 // Discord shows "thinking..." (deferred response) until the first post; the interaction token lasts 15 min.
 bot.onSlashCommand("/ask", async (event) => {
   const guildId = (event.raw as { guild_id?: string }).guild_id;
@@ -50,8 +60,11 @@ bot.onSlashCommand("/ask", async (event) => {
   }
 
   // Live progress: one status message edited as tools run, then replaced by the answer
-  const status = await event.channel.post("🤔 Pensant…");
-  const progress = liveProgress((text) => status.edit(text));
+  // Edited through the interaction webhook, not the bot token: the bot may lack access to the channel (403 Missing Access)
+  await event.channel.post("🤔 Pensant…");
+  const { token } = event.raw as { token: string };
+  const editStatus = (content: string) => editOriginal(token, content);
+  const progress = liveProgress(editStatus);
   try {
     const key = historyKey(event.channel.id, event.user.userId);
     const history = await state.getList<ModelMessage>(key);
@@ -61,7 +74,7 @@ bot.onSlashCommand("/ask", async (event) => {
     });
     await progress.done();
     const [first, ...rest] = chunks(`> ${event.text}\n\n${answer.narrative}`);
-    await status.edit(first);
+    await editStatus(first);
     for (const part of rest) await event.channel.post(part);
 
     const turn: ModelMessage[] = [
@@ -72,7 +85,7 @@ bot.onSlashCommand("/ask", async (event) => {
   } catch (error) {
     console.error("[Bot] /ask failed:", error);
     await progress.done();
-    await status.edit("Ho sento, s'ha produït un error processant la consulta.");
+    await editStatus("Ho sento, s'ha produït un error processant la consulta.");
   } finally {
     await flushTelemetry();
   }
